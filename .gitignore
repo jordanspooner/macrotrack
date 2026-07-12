@@ -1,0 +1,31 @@
+# Raw dataset inputs for the food-db-builder (large; regenerate via
+# `./gradlew buildFoodDatabase` after placing CSVs in food-db-builder/data/).
+food-db-builder/data/*.csv
+
+# Generated/build artifacts
+build/
+.gradle/
+**/build/
+local.properties
+
+# Test resources (images, fixtures, etc.)
+app/src/test/resources/
+sample-labels/
+
+# Ad-hoc test sources
+app/src/test/java/com/macrotrack/domain/parser/LabelParserOcrAnalysisTest.kt
+app/src/test/java/com/macrotrack/domain/parser/RealOcrElements.kt
+
+# Binary files (test images, etc.)
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
+*.webp
+*.avif
+
+# OS / editor / IDE
+.DS_Store
+*.iml
+.idea/
