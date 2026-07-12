@@ -11,6 +11,7 @@ local.properties
 # Test resources (images, fixtures, etc.)
 app/src/test/resources/
 sample-labels/
+scripts/
 
 # Ad-hoc test sources
 app/src/test/java/com/macrotrack/domain/parser/LabelParserOcrAnalysisTest.kt

@@ -9,7 +9,6 @@ import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -17,13 +16,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.wrapContentWidth
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Button
@@ -137,41 +133,99 @@ fun LabelScanScreen(onLabelConfirmed: (ParsedNutritionLabel) -> Unit) {
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 12.dp, vertical = 16.dp),
-        contentAlignment = Alignment.BottomCenter
+            .padding(horizontal = 12.dp, vertical = 16.dp)
     ) {
+        // Top: live energy + serving readouts (per 100 g), mirrors the bottom panel.
         Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
-            tonalElevation = 6.dp
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth(),
+            shape = RoundedCornerShape(20.dp),
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                val kcalValue = (consensus.kcal.value as? Float)
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = kcalValue?.let { "%.0f".format(it) } ?: "—",
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = if (consensus.kcal.confirmed) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        "kcal",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                val servingValue = (consensus.servingG.value as? Float)
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = servingValue?.let { "%.0f".format(it) } ?: "—",
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = if (consensus.servingG.confirmed) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        "serving (g)",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+
+        // Bottom: translucent panel with pie on the side and macros below.
+        Surface(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth(),
+            shape = RoundedCornerShape(20.dp),
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text("Detected nutrition label", style = MaterialTheme.typography.titleMedium)
-                Text(
-                    "Hold steady — values confirm after a few matching scans.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                Column(
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "Macros",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Text(
+                        "per 100 g",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                Row(
                     modifier = Modifier
-                        .verticalScroll(rememberScrollState())
-                        .heightIn(max = this@BoxWithConstraints.maxHeight * 0.5f)
+                        .fillMaxWidth()
                         .padding(top = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     MacroPieChart(
                         macros = consensus.toParsedLabel().toMacros(),
                         modifier = Modifier
-                            .size(96.dp)
-                            .fillMaxWidth()
-                            .wrapContentWidth(Alignment.CenterHorizontally)
+                            .size(104.dp)
+                            .padding(4.dp)
                     )
-                    FieldRow("Energy", consensus.kcal, suffix = "kcal") { "%.0f".format(it) }
-                    FieldRow("Protein", consensus.protein, suffix = "g") { "%.1f".format(it) }
-                    FieldRow("Carbs", consensus.carbs, suffix = "g") { "%.1f".format(it) }
-                    FieldRow("Fat", consensus.fat, suffix = "g") { "%.1f".format(it) }
-                    FieldRow("Serving", consensus.servingG, suffix = "g") { "%.0f".format(it) }
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        FieldRow("Protein", consensus.protein, suffix = "g") { "%.1f".format(it) }
+                        FieldRow("Carbs", consensus.carbs, suffix = "g") { "%.1f".format(it) }
+                        FieldRow("Fat", consensus.fat, suffix = "g") { "%.1f".format(it) }
+                    }
                 }
 
                 Button(
@@ -179,7 +233,7 @@ fun LabelScanScreen(onLabelConfirmed: (ParsedNutritionLabel) -> Unit) {
                     enabled = consensus.isReady,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 12.dp)
+                        .padding(top = 14.dp)
                 ) {
                     Icon(Icons.Default.Check, contentDescription = null)
                     Text("Use this label")
@@ -201,13 +255,6 @@ private fun FieldRow(
         is String -> v
         null -> "—"
         else -> field.value.toString()
-    }
-    val status = when {
-        field.confirmed -> "Confirmed"
-        field.readCount >= ConsensusField.MIN_READS ->
-            "Best of ${field.readCount} (${"%.0f".format(field.confidence * 100f)}% match)"
-        field.readCount > 0 -> "Scanning (${field.readCount}/${ConsensusField.MIN_READS})"
-        else -> "Aiming…"
     }
 
     Column(modifier = Modifier.fillMaxWidth()) {
@@ -234,14 +281,6 @@ private fun FieldRow(
                     )
                 }
             }
-        }
-        if (!field.confirmed) {
-            Text(
-                status,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 2.dp)
-            )
         }
         LinearProgressIndicator(
             progress = { field.progress },

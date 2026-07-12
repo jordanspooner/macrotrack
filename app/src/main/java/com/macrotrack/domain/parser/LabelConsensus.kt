@@ -1,15 +1,32 @@
 package com.macrotrack.domain.parser
 
+import kotlin.math.abs
+
 /**
- * Rolling, history-based consensus over successive OCR readings of a nutrition
- * label.
+ * Confidence level for a resolved field, based on frequency and reading count.
+ */
+enum class Confidence { HIGH, MEDIUM, DERIVED, NULL }
+
+private data class ResolvedFields(
+    val kcal: Float?,
+    val fat: Float?,
+    val carbs: Float?,
+    val protein: Float?,
+    val servingSizeG: Float?
+)
+
+/**
+ * Rolling consensus over successive OCR readings of a nutrition label.
  *
  * For every field we keep a bounded history (the last [HISTORY_SIZE] non-null,
- * *plausible* readings). The value we surface is the most common one, but only
- * once it has been seen at least [MIN_READS] times. A field becomes "confirmed"
- * once it has been seen at least [MIN_READS] times AND that most-common value
- * accounts for strictly more than half of all valid readings. Once confirmed the
- * value is locked and will never change again.
+ * *plausible* readings). The value we surface is determined by MAP scoring:
+ * cluster readings, generate scale-variant candidates, score combinations
+ * against all evidence using hard physical constraints and soft invariant
+ * couplings (Atwater, kJ↔kcal, perServing↔per100).
+ *
+ * A field becomes "confirmed" once it has been seen at least [MIN_READS] times
+ * AND the best value accounts for strictly more than half of all valid readings.
+ * Once confirmed the value is locked and will never change again.
  *
  * Any reading that is individually implausible (e.g. 5000 kcal per 100g) is
  * thrown out immediately and is *not* counted towards the confidence history.
@@ -113,11 +130,28 @@ data class LabelConsensus(
     val carbs: ConsensusField<Float> = floatField(MACRO_PLAUSIBLE),
     val fat: ConsensusField<Float> = floatField(MACRO_PLAUSIBLE),
     val servingG: ConsensusField<Float> = floatField(SERVING_PLAUSIBLE),
-    val servingLabel: ConsensusField<String> = ConsensusField(plausible = { it.isNotBlank() })
+    val servingLabel: ConsensusField<String> = ConsensusField(plausible = { it.isNotBlank() }),
+    val readings: List<Reading> = emptyList()
 ) {
     fun accept(p: ParsedNutritionLabel): LabelConsensus {
         val servingG = p.servingSizeG
         val resolved = resolvePer100(p, servingG)
+
+        // Record the full per-scan reading (per-100g + per-serving) so the MAP
+        // can score combinations against co-occurring evidence.
+        val scan = Reading(
+            kj = resolved.kj,
+            kcal = resolved.kcal,
+            fat = resolved.fat,
+            carbs = resolved.carbs,
+            protein = resolved.protein,
+            perServingKcal = p.perServing?.kcal,
+            perServingKj = p.perServing?.kj,
+            perServingFat = p.perServing?.fat,
+            perServingCarbs = p.perServing?.carbs,
+            perServingProtein = p.perServing?.protein
+        )
+        val newReadings = if (readings.size >= ConsensusField.HISTORY_SIZE) readings.drop(1) + scan else readings + scan
 
         var updated = copy(
             kcal = kcal.observe(resolved.kcal),
@@ -125,19 +159,17 @@ data class LabelConsensus(
             carbs = carbs.observe(resolved.carbs),
             fat = fat.observe(resolved.fat),
             servingG = if (servingG != null) this.servingG.observe(servingG) else this.servingG,
-            servingLabel = servingLabel.observe(p.servingLabel)
+            servingLabel = servingLabel.observe(p.servingLabel),
+            readings = newReadings
         )
 
-        // Detect per-100g vs per-serving confusion: if a field has exactly
-        // 2 distinct values whose ratio matches the serving size, discard
-        // the per-serving value (the smaller one).
+        // Detect per-100g vs per-serving confusion
         val serving = servingG ?: updated.servingG.bestValue
         if (serving != null && serving > 0f) {
             updated = updated.resolveServingConfusion(serving)
         }
 
-        // Fix 10× OCR errors: when oscillating between X and X*10, prefer
-        // the decimal value. Also cross-check using kcal=4P+4C+9F.
+        // Fix 10× OCR errors: oscillation detection + Atwater cross-check
         updated = updated.fixTenXErrors()
 
         val valid = updated.isValid
@@ -148,40 +180,83 @@ data class LabelConsensus(
             carbs = updated.carbs.tryLock(labelValid),
             fat = updated.fat.tryLock(labelValid),
             servingG = updated.servingG.tryLock(valid.plausible),
-            servingLabel = updated.servingLabel.tryLock(valid.plausible)
+            servingLabel = updated.servingLabel.tryLock(valid.plausible),
+            readings = newReadings
         )
     }
 
-    /**
-     * Detect and resolve the per-100g vs per-serving confusion.
-     *
-     * When a field has exactly 2 distinct values in its history, and their
-     * ratio is approximately 100/servingSize, one is per-100g and the other
-     * is per-serving. We discard the per-serving value (the smaller one)
-     * since the consensus should track per-100g values.
-     */
+    fun toParsedLabel(): ParsedNutritionLabel {
+        val resolved = resolveAllFields()
+        return ParsedNutritionLabel(
+            per100 = MacroValues(
+                kcal = resolved.kcal,
+                fat = resolved.fat,
+                carbs = resolved.carbs,
+                protein = resolved.protein
+            ),
+            perServing = null,
+            servingSizeG = resolved.servingSizeG ?: servingG.value,
+            servingLabel = servingLabel.value
+        )
+    }
+
+    val isReady: Boolean
+        get() {
+            val k = kcal.bestValue
+            val p = protein.bestValue
+            val c = carbs.bestValue
+            val f = fat.bestValue
+            return kcal.confirmed &&
+                (protein.confirmed || carbs.confirmed || fat.confirmed) &&
+                isValid(k, p, c, f).plausible
+        }
+
+    // ── Per-100g resolution ────────────────────────────────────────
+
+    private fun resolvePer100(p: ParsedNutritionLabel, servingG: Float?): MacroValues {
+        val p100 = p.per100
+        val pServ = p.perServing
+        if (pServ == null) return p100 ?: MacroValues(null, null, null, null)
+        if (p100 == null) {
+            val factor = if (servingG != null && servingG > 0f) 100f / servingG else return pServ
+            return MacroValues(
+                kcal = pServ.kcal?.let { it * factor },
+                fat = pServ.fat?.let { it * factor },
+                carbs = pServ.carbs?.let { it * factor },
+                protein = pServ.protein?.let { it * factor }
+            )
+        }
+        return crossValidate(p100, pServ, servingG)
+    }
+
+    private fun crossValidate(p100: MacroValues, pServ: MacroValues, servingG: Float?): MacroValues {
+        val factor = if (servingG != null && servingG > 0f) servingG / 100f else null
+        fun pick(per100: Float?, perServing: Float?): Float? {
+            if (per100 != null) return per100
+            if (perServing != null && factor != null) return perServing / factor
+            return null
+        }
+        return MacroValues(
+            kcal = pick(p100.kcal, pServ.kcal),
+            fat = pick(p100.fat, pServ.fat),
+            carbs = pick(p100.carbs, pServ.carbs),
+            protein = pick(p100.protein, pServ.protein)
+        )
+    }
+
+    // ── Serving confusion detection ────────────────────────────────
+
     private fun resolveServingConfusion(servingSizeG: Float): LabelConsensus {
         val ratio = 100f / servingSizeG
 
         fun resolveField(field: ConsensusField<Float>): ConsensusField<Float> {
             val distinct = field.distinctValues
             if (distinct.size != 2) return field
-
-            val (v1, c1) = distinct[0]
-            val (v2, c2) = distinct[1]
-
-            // Check if the ratio between the two values matches the serving ratio.
-            // We check both directions since we don't know which is per-100g.
-            val small = minOf(v1, v2)
-            val large = maxOf(v1, v2)
+            val (v1, c1) = distinct[0]; val (v2, c2) = distinct[1]
+            val small = minOf(v1, v2); val large = maxOf(v1, v2)
             if (small <= 0f) return field
-
             val actualRatio = large / small
-            // Tolerance: within 20% of the expected ratio
-            if (kotlin.math.abs(actualRatio - ratio) / ratio > 0.2f) return field
-
-            // The larger value is per-100g, the smaller is per-serving.
-            // Discard the smaller value from the history.
+            if (abs(actualRatio - ratio) / ratio > 0.2f) return field
             return field.discardValue(small)
         }
 
@@ -193,21 +268,10 @@ data class LabelConsensus(
         )
     }
 
-    /**
-     * Fix 10× OCR errors. Two strategies:
-     *
-     * 1. Oscillation fix: If a field has exactly 2 distinct values and one
-     *    is approximately 10× the other, prefer the decimal (smaller) value.
-     *    E.g. fat oscillating between 15.4 and 154 → keep 15.4.
-     *
-     * 2. Cross-check fix: If we have kcal and at least 2 macros, compute
-     *    kcal = 4P + 4C + 9F. If one macro is off by ~10× compared to
-     *    this estimate, correct it.
-     */
+    // ── Ten× OCR error fixing ──────────────────────────────────────
+
     private fun fixTenXErrors(): LabelConsensus {
         var result = this
-
-        // Strategy 1: oscillation fix per field
         result = result.copy(
             kcal = fixTenXField(result.kcal),
             protein = fixTenXField(result.protein),
@@ -215,61 +279,34 @@ data class LabelConsensus(
             fat = fixTenXField(result.fat)
         )
 
-        // Strategy 2: cross-check using kcal = 4P + 4C + 9F
         val k = result.kcal.bestValue
         val p = result.protein.bestValue
         val c = result.carbs.bestValue
         val f = result.fat.bestValue
 
-        if (k != null && k > 0f) {
-            val pVal = p
-            val cVal = c
-            val fVal = f
-            if (pVal != null && cVal != null && fVal != null) {
-                val computedKcal = pVal * 4f + cVal * 4f + fVal * 9f
-                if (computedKcal > 0f) {
-                    // Try fixing each macro individually: does adjusting by 10× make it balance?
-                    result = result.fixMacroForKcal(k, result.protein, "protein",
-                        pVal, cVal * 4f + fVal * 9f, 4f) { result.copy(protein = it) }
-                    result = result.fixMacroForKcal(k, result.carbs, "carbs",
-                        cVal, pVal * 4f + fVal * 9f, 4f) { result.copy(carbs = it) }
-                    result = result.fixMacroForKcal(k, result.fat, "fat",
-                        fVal, pVal * 4f + cVal * 4f, 9f) { result.copy(fat = it) }
-                }
-            }
+        if (k != null && k > 0f && p != null && c != null && f != null) {
+            result = fixMacroForKcal(k, result.protein, "protein", p, c * 4f + f * 9f, 4f) { result.copy(protein = it) }
+            result = fixMacroForKcal(k, result.carbs, "carbs", c, p * 4f + f * 9f, 4f) { result.copy(carbs = it) }
+            result = fixMacroForKcal(k, result.fat, "fat", f, p * 4f + c * 4f, 9f) { result.copy(fat = it) }
         }
-
         return result
     }
 
-    /**
-     * Try to fix a single macro field's 10× error by cross-checking against kcal.
-     * If multiplying or dividing the macro by 10 makes the kcal equation match
-     * better, replace the field's best value with the corrected one.
-     */
     private fun fixMacroForKcal(
-        kcal: Float,
-        field: ConsensusField<Float>,
-        name: String,
-        currentMacro: Float,
-        otherKcalContribution: Float,
-        multiplier: Float,
+        kcal: Float, field: ConsensusField<Float>, name: String,
+        currentMacro: Float, otherKcalContribution: Float, multiplier: Float,
         apply: (ConsensusField<Float>) -> LabelConsensus
     ): LabelConsensus {
         val value = field.bestValue ?: return this
         if (field.locked != null) return this
         if (currentMacro <= 0f) return this
-
-        // Current error
         val currentTotal = otherKcalContribution + currentMacro * multiplier
-        val currentError = kotlin.math.abs(kcal - currentTotal)
-
-        // Try value*10 and value/10
+        val currentError = abs(kcal - currentTotal)
         for (factor in listOf(10f, 0.1f)) {
             val adjusted = value * factor
             if (adjusted > 100f) continue
             val newTotal = otherKcalContribution + adjusted * multiplier
-            val newError = kotlin.math.abs(kcal - newTotal)
+            val newError = abs(kcal - newTotal)
             if (newError < currentError && newError < 0.3f * kcal) {
                 return apply(field.discardValue(value).observe(adjusted))
             }
@@ -277,106 +314,319 @@ data class LabelConsensus(
         return this
     }
 
-    /**
-     * Fix a single field's 10× oscillation: if there are exactly 2 distinct
-     * values and one is ~10× the other, prefer the decimal one.
-     */
     private fun fixTenXField(field: ConsensusField<Float>): ConsensusField<Float> {
         if (field.locked != null) return field
         val distinct = field.distinctValues
         if (distinct.size != 2) return field
-
-        val (v1, _) = distinct[0]
-        val (v2, _) = distinct[1]
-        val small = minOf(v1, v2)
-        val large = maxOf(v1, v2)
+        val (v1, _) = distinct[0]; val (v2, _) = distinct[1]
+        val small = minOf(v1, v2); val large = maxOf(v1, v2)
         if (small <= 0f) return field
-
         val ratio = large / small
-        // Ratio close to 10× (within 20%)
-        if (kotlin.math.abs(ratio - 10f) > 2f) return field
-
-        // Prefer the decimal (smaller) value — discard the 10× one
+        if (abs(ratio - 10f) > 2f) return field
         return field.discardValue(large)
     }
 
-    private fun resolvePer100(p: ParsedNutritionLabel, servingG: Float?): MacroValues {
-        val p100 = p.per100
-        val pServ = p.perServing
+    // ── MAP-based field resolution ─────────────────────────────────
 
-        if (pServ == null) return p100 ?: MacroValues(null, null, null, null)
+    private fun resolveAllFields(): ResolvedFields {
+        if (readCount < MIN_READS_FOR_MAP) return resolveFromBestValues()
 
-        if (p100 == null) {
-            val factor = if (servingG != null && servingG > 0f) 100f / servingG else return pServ
-            return MacroValues(
-                kcal = pServ.kcal?.let { it * factor },
-                fat = pServ.fat?.let { it * factor },
-                carbs = pServ.carbs?.let { it * factor },
-                protein = pServ.protein?.let { it * factor }
-            )
-        }
+        val allReadings = collectReadings()
+        if (allReadings.isEmpty()) return resolveFromBestValues()
 
-        return crossValidate(p100, pServ, servingG)
-    }
+        val per100Readings = allReadings.filter { it.kcal != null || it.fat != null || it.carbs != null || it.protein != null }
+        val perServReadings = allReadings.filter { it.perServingKcal != null || it.perServingFat != null || it.perServingCarbs != null || it.perServingProtein != null }
 
-    private fun crossValidate(p100: MacroValues, pServ: MacroValues, servingG: Float?): MacroValues {
-        val factor = if (servingG != null && servingG > 0f) servingG / 100f else null
+        val fatClusters = clusterReadings(per100Readings.mapNotNull { it.fat })
+        val carbClusters = clusterReadings(per100Readings.mapNotNull { it.carbs })
+        val protClusters = clusterReadings(per100Readings.mapNotNull { it.protein })
+        val kcalClusters = clusterReadings(per100Readings.mapNotNull { it.kcal })
+        val kjClusters = clusterReadings(per100Readings.mapNotNull { it.kj })
+        val servFatClusters = clusterReadings(perServReadings.mapNotNull { it.perServingFat })
+        val servCarbClusters = clusterReadings(perServReadings.mapNotNull { it.perServingCarbs })
+        val servProtClusters = clusterReadings(perServReadings.mapNotNull { it.perServingProtein })
+        val servKcalClusters = clusterReadings(perServReadings.mapNotNull { it.perServingKcal })
 
-        fun pick(per100: Float?, perServing: Float?): Float? {
-            if (per100 != null) return per100
-            if (perServing != null && factor != null) {
-                return perServing / factor
+        val fatCandidates = generateCandidates(fatClusters, 0f, 100f)
+        val carbCandidates = generateCandidates(carbClusters, 0f, 100f)
+        val protCandidates = generateCandidates(protClusters, 0f, 100f)
+        val kcalCandidates = generateCandidates(kcalClusters, 0f, 1100f)
+        val servingCandidates = generateServingCandidates(per100Readings, perServReadings)
+
+        var bestScore = Double.NEGATIVE_INFINITY
+        var bestFat: Float? = null; var bestCarbs: Float? = null; var bestProt: Float? = null
+        var bestKcal: Float? = null; var bestServ: Float? = null
+
+        for (fc in fatCandidates) {
+            for (cc in carbCandidates) {
+                if (fc.first + cc.first > 100f) continue
+                for (pc in protCandidates) {
+                    if (fc.first + cc.first + pc.first > 100f) continue
+                    for (kc in kcalCandidates) {
+                        val score = scoreCombo(
+                            fc.first, cc.first, pc.first, kc.first,
+                            fatClusters, carbClusters, protClusters, kcalClusters,
+                            kjClusters
+                        )
+                        if (score > bestScore) {
+                            bestScore = score; bestFat = fc.first; bestCarbs = cc.first
+                            bestProt = pc.first; bestKcal = kc.first
+                        }
+                    }
+                }
             }
-            return null
         }
 
-        return MacroValues(
-            kcal = pick(p100.kcal, pServ.kcal),
-            fat = pick(p100.fat, pServ.fat),
-            carbs = pick(p100.carbs, pServ.carbs),
-            protein = pick(p100.protein, pServ.protein)
+        val serving = if (bestFat != null && servingCandidates.isNotEmpty()) {
+            servingCandidates.maxByOrNull { (servVal, _) ->
+                val expFat = bestFat * servVal / 100f
+                val expCarb = (bestCarbs ?: 0f) * servVal / 100f
+                val expProt = (bestProt ?: 0f) * servVal / 100f
+                val expKcal = (bestKcal ?: 0f) * servVal / 100f
+                var s = 0.0
+                for (r in perServReadings) {
+                    if (r.perServingFat != null && expFat > 0) s += 1.0 - minOf(abs(r.perServingFat - expFat).toDouble() / maxOf(expFat, 1f), 1.0)
+                    if (r.perServingCarbs != null && expCarb > 0) s += 1.0 - minOf(abs(r.perServingCarbs - expCarb).toDouble() / maxOf(expCarb, 1f), 1.0)
+                    if (r.perServingProtein != null && expProt > 0) s += 1.0 - minOf(abs(r.perServingProtein - expProt).toDouble() / maxOf(expProt, 1f), 1.0)
+                    if (r.perServingKcal != null && expKcal > 0) s += 1.0 - minOf(abs(r.perServingKcal - expKcal).toDouble() / maxOf(expKcal, 1f), 1.0)
+                }
+                s
+            }?.first
+        } else null
+
+        // Derivation gate: if kcal had no direct reading but all three macros
+        // are confidently resolved, derive it via Atwater (R3).
+        if (bestKcal == null) {
+            val f = bestFat; val c = bestCarbs; val pr = bestProt
+            if (f != null && c != null && pr != null) {
+                bestKcal = 9f * f + 4f * c + 4f * pr
+            }
+        }
+
+        return ResolvedFields(
+            kcal = bestKcal,
+            fat = bestFat,
+            carbs = bestCarbs,
+            protein = bestProt,
+            servingSizeG = serving
         )
     }
 
-    val isReady: Boolean
-        get() = kcal.confirmed && (protein.confirmed || carbs.confirmed || fat.confirmed) && isValid.plausible
+    private fun resolveFromBestValues(): ResolvedFields {
+        return ResolvedFields(
+            kcal = kcal.value,
+            fat = fat.value,
+            carbs = carbs.value,
+            protein = protein.value,
+            servingSizeG = servingG.value
+        )
+    }
 
-    fun toParsedLabel(): ParsedNutritionLabel = ParsedNutritionLabel(
-        per100 = MacroValues(kcal.value, fat.value, carbs.value, protein.value),
-        perServing = null,
-        servingSizeG = servingG.value,
-        servingLabel = servingLabel.value
+    private fun scoreCombo(
+        fat: Float, carbs: Float, prot: Float, kcal: Float,
+        fatC: List<Cluster>, carbC: List<Cluster>, protC: List<Cluster>,
+        kcalC: List<Cluster>, kjC: List<Cluster>
+    ): Double {
+        // Hard constraints
+        if (fat + carbs + prot > 100f) return Double.NEGATIVE_INFINITY
+
+        var score = 0.0
+        val n = readCount.toFloat()
+
+        fun fieldScore(value: Float, clusters: List<Cluster>, high: Float, med: Float): Double {
+            val total = clusters.sumOf { it.count }.toFloat()
+            if (total == 0f) return 0.0
+            val matching = clusters.filter { abs(it.value - value) < maxOf(0.1f, 0.02f * value) }
+            val matchCount = matching.sumOf { it.count }.toFloat()
+            val freq = matchCount / total
+            val confidence = when {
+                total >= 3 && freq > 0.6f -> high.toDouble()
+                total >= 2 && freq > 0.4f -> med.toDouble()
+                else -> 0.0
+            }
+            return freq * confidence * 10.0
+        }
+
+        score += fieldScore(fat, fatC, HIGH_CONF, MED_CONF)
+        score += fieldScore(carbs, carbC, HIGH_CONF, MED_CONF)
+        score += fieldScore(prot, protC, HIGH_CONF, MED_CONF)
+        score += fieldScore(kcal, kcalC, HIGH_CONF, MED_CONF)
+
+        // R1: kJ should track 4.184 × kcal. Score the implied kJ against the
+        // kJ readings so combos consistent with both energy scales win.
+        if (kcal > 0f && kjC.isNotEmpty()) {
+            score += fieldScore(4.184f * kcal, kjC, HIGH_CONF, MED_CONF)
+        }
+
+        // Invariants
+        val computedKcal = 4f * carbs + 4f * prot + 9f * fat
+        if (kcal > 0f) {
+            val kcalError = abs(kcal - computedKcal) / maxOf(kcal, 1f)
+            score -= kcalError * 15.0
+        }
+
+        val highFields = listOf(fat to fatC, carbs to carbC, prot to protC, kcal to kcalC).count { (_, c) ->
+            val total = c.sumOf { it.count }.toFloat()
+            val matchCount = c.filter { cl -> abs(cl.value - (if (c === fatC) fat else if (c === carbC) carbs else if (c === protC) prot else kcal)) < maxOf(0.1f, 0.02f * (if (c === fatC) fat else if (c === carbC) carbs else if (c === protC) prot else kcal)) }.sumOf { it.count }.toFloat()
+            total > 0 && matchCount / total > 0.6f
+        }
+        if (highFields >= 3) score += 5.0
+
+        return score
+    }
+
+    // ── Reading collection & field resolution ───────────────────────
+
+    data class Reading(
+        val kj: Float? = null,
+        val kcal: Float? = null,
+        val fat: Float? = null,
+        val carbs: Float? = null,
+        val protein: Float? = null,
+        val perServingKcal: Float? = null,
+        val perServingKj: Float? = null,
+        val perServingFat: Float? = null,
+        val perServingCarbs: Float? = null,
+        val perServingProtein: Float? = null
     )
 
-    private val isValid: Validity
-        get() {
-            val k = kcal.bestValue
-            val p = protein.bestValue
-            val c = carbs.bestValue
-            val f = fat.bestValue
-            val plausible = (k != null && k in 0f..1000f) &&
-                listOf(p, c, f).all { it == null || it in 0f..100f } &&
-                listOfNotNull(p, c, f).sum() <= 100f
-            return Validity(plausible, isConsistent(k, p, c, f))
+    private fun collectReadings(): List<Reading> {
+        return readings
+    }
+
+    private val readCount: Int
+        get() = readings.size
+
+    // ── Clustering ─────────────────────────────────────────────────
+
+    data class Cluster(val value: Float, val count: Int)
+
+    private fun clusterReadings(values: List<Float>, tolerance: Float = 0.1f): List<Cluster> {
+        if (values.isEmpty()) return emptyList()
+        val sorted = values.sorted()
+        val clusters = mutableListOf<MutableList<Float>>()
+        var currentCluster = mutableListOf(sorted[0])
+        for (i in 1 until sorted.size) {
+            if (abs(sorted[i] - sorted[i - 1]) <= maxOf(tolerance, 0.02f * sorted[i - 1])) {
+                currentCluster.add(sorted[i])
+            } else {
+                clusters.add(currentCluster)
+                currentCluster = mutableListOf(sorted[i])
+            }
         }
+        clusters.add(currentCluster)
+        return clusters.map { Cluster(it.average().toFloat(), it.size) }
+    }
+
+    // ── Candidate generation ───────────────────────────────────────
+
+    private fun generateCandidates(
+        clusters: List<Cluster>,
+        low: Float,
+        high: Float
+    ): List<Pair<Float, Float>> {
+        if (clusters.isEmpty()) return emptyList()
+        return clusters.flatMap { c ->
+            listOf(c.value / 10f, c.value, c.value * 10f)
+                .filter { it in low..high }
+                .map { it to c.count.toFloat() }
+        }
+    }
+
+    private fun generateServingCandidates(
+        per100: List<Reading>,
+        perServ: List<Reading>
+    ): List<Pair<Float, Float>> {
+        val candidates = mutableListOf<Pair<Float, Float>>()
+        for (r in per100) {
+            if (r.fat == null || r.fat <= 0f) continue
+            for (rs in perServ) {
+                if (rs.perServingFat != null && rs.perServingFat > 0f) {
+                    val serv = 100f * rs.perServingFat / r.fat
+                    if (serv in 1f..2000f) candidates.add(serv to 1f)
+                }
+            }
+        }
+        return candidates.ifEmpty {
+            val sv = servingG.bestValue
+            if (sv != null) listOf(sv to 0f) else emptyList()
+        }
+    }
+
+    // ── Field derivation & confidence ──────────────────────────────
+
+    private fun deriveField(
+        field: ConsensusField<Float>,
+        clusters: List<Cluster>,
+        deriveFrom: (() -> Float?)?,
+        confidence: Confidence
+    ): Pair<Float?, Confidence> {
+        val modal = clusters.maxByOrNull { it.count }
+        if (modal == null || modal.count < 3) return (deriveFrom?.invoke()) to Confidence.DERIVED
+        val freq = modal.count.toFloat() / readCount
+        return when {
+            freq > 0.6f && readCount >= ConsensusField.MIN_READS -> modal.value to Confidence.HIGH
+            freq > 0.4f && readCount >= ConsensusField.MIN_READS -> modal.value to Confidence.MEDIUM
+            else -> modal.value to Confidence.MEDIUM
+        }
+    }
+
+    // ── Per-serving field resolution ───────────────────────────────
+
+    private fun resolvePerServField(
+        field: ConsensusField<Float>,
+        per100Field: ConsensusField<Float>,
+        serving: Float?
+    ): Pair<Float?, Confidence> {
+        val distinct = field.distinctValues
+        if (distinct.isEmpty()) return null to Confidence.NULL
+        val modal = distinct.maxByOrNull { it.second }
+        if (modal == null) return null to Confidence.NULL
+        val n = readCount.toFloat()
+        val freq = modal.second / n
+        return when {
+            n >= 3 && freq > 0.6f -> modal.first to Confidence.HIGH
+            n >= 2 && freq > 0.4f -> modal.first to Confidence.MEDIUM
+            else -> modal.first to Confidence.MEDIUM
+        }
+    }
+
+    // ── Validation ─────────────────────────────────────────────────
 
     private data class Validity(val plausible: Boolean, val consistent: Boolean)
 
+    private val isValid: Validity
+        get() {
+            val k = kcal.bestValue; val p = protein.bestValue; val c = carbs.bestValue; val f = fat.bestValue
+            return isValid(k, p, c, f)
+        }
+
+    private fun isValid(kcal: Float?, p: Float?, c: Float?, f: Float?): Validity {
+        val plausible = (kcal != null && kcal in 0f..1000f) &&
+            listOf(p, c, f).all { it == null || it in 0f..100f } &&
+            listOfNotNull(p, c, f).sum() <= 100f
+        return Validity(plausible, isConsistent(kcal, p, c, f))
+    }
+
+    private fun isConsistent(kcal: Float?, p: Float?, c: Float?, f: Float?): Boolean {
+        if (kcal == null || kcal <= 0f) return true
+        val present = listOfNotNull(p, c, f)
+        if (present.size < 2) return true
+        val computed = (p ?: 0f) * 4f + (c ?: 0f) * 4f + (f ?: 0f) * 9f
+        val diff = abs(kcal - computed)
+        return diff <= maxOf(0.15f * kcal, 20f)
+    }
+
     companion object {
+        private const val HIGH_CONF = 1.0f
+        private const val MED_CONF = 0.6f
+        private const val MIN_READS_FOR_MAP = 4
+
         private val KCAL_PLAUSIBLE: (Float) -> Boolean = { it >= 0f && it <= 1000f }
         private val MACRO_PLAUSIBLE: (Float) -> Boolean = { it >= 0f && it <= 100f }
         private val SERVING_PLAUSIBLE: (Float) -> Boolean = { it > 0f && it <= 2000f }
 
         private fun floatField(plausible: (Float) -> Boolean) =
             ConsensusField<Float>(plausible = plausible, keyOf = { kotlin.math.round(it * 10f).toInt() })
-
-        private fun isConsistent(kcal: Float?, p: Float?, c: Float?, f: Float?): Boolean {
-            if (kcal == null || kcal <= 0f) return true
-            val present = listOfNotNull(p, c, f)
-            if (present.size < 2) return true
-            val computed = (p ?: 0f) * 4f + (c ?: 0f) * 4f + (f ?: 0f) * 9f
-            val diff = kotlin.math.abs(kcal - computed)
-            return diff <= kotlin.math.max(0.15f * kcal, 20f)
-        }
     }
 }
