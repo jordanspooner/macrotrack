@@ -29,3 +29,7 @@ app/src/test/java/com/macrotrack/domain/parser/LabelParserOcrAnalysisTest.kt
 .DS_Store
 *.iml
 .idea/
+
+# Tooling caches / config
+.kotlin/
+opencode.json
