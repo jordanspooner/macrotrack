@@ -34,7 +34,11 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -55,7 +59,6 @@ import com.macrotrack.domain.parser.LabelParser
 import com.macrotrack.domain.parser.OcrElement
 import com.macrotrack.domain.parser.ParsedNutritionLabel
 import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.MutableStateFlow
 import java.util.concurrent.Executors
 
 @Composable
@@ -76,7 +79,8 @@ fun LabelScanScreen(onLabelConfirmed: (ParsedNutritionLabel) -> Unit) {
     ) { granted -> hasPermission = granted }
 
     var consensus by remember { mutableStateOf(LabelConsensus()) }
-    val textFlow = remember { MutableSharedFlow<List<OcrElement>>(extraBufferCapacity = 64) }
+    val textFlow = remember { MutableSharedFlow<ParsedNutritionLabel>(extraBufferCapacity = 64) }
+    val scope = rememberCoroutineScope()
 
     if (!hasPermission) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -91,11 +95,12 @@ fun LabelScanScreen(onLabelConfirmed: (ParsedNutritionLabel) -> Unit) {
         return
     }
 
+    // Only the cheap Compose state update runs on the main thread; the
+    // O(n²) parsing happens on Dispatchers.Default (see processText), so a
+    // busy label can never stall input dispatch.
     androidx.compose.runtime.LaunchedEffect(Unit) {
-        textFlow.collect { elements ->
-            val flatText = elements.joinToString("\n") { it.text }
-            android.util.Log.d("LabelScan/OCR", flatText)
-            consensus = consensus.accept(parser.parseStructured(elements))
+        textFlow.collect { label ->
+            consensus = consensus.accept(label)
         }
     }
 
@@ -114,7 +119,7 @@ fun LabelScanScreen(onLabelConfirmed: (ParsedNutritionLabel) -> Unit) {
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                 .build()
             analysis.setAnalyzer(ex) { imageProxy ->
-                processText(imageProxy, recognizer) { elements -> textFlow.tryEmit(elements) }
+                processText(imageProxy, recognizer, parser, scope) { label -> textFlow.tryEmit(label) }
             }
             provider.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis)
         }, ContextCompat.getMainExecutor(context))
@@ -175,7 +180,7 @@ fun LabelScanScreen(onLabelConfirmed: (ParsedNutritionLabel) -> Unit) {
                         }
                     }
                     Text(
-                        "kcal",
+                        "kcal per 100g/ml",
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -189,7 +194,7 @@ fun LabelScanScreen(onLabelConfirmed: (ParsedNutritionLabel) -> Unit) {
                         else MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        "serving (g)",
+                        "serving (g/ml)",
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -332,11 +337,19 @@ private fun ParsedNutritionLabel.toMacros(): com.macrotrack.domain.model.Macros 
 private fun processText(
     imageProxy: ImageProxy,
     recognizer: TextRecognizer,
-    onElements: (List<OcrElement>) -> Unit
+    parser: LabelParser,
+    scope: CoroutineScope,
+    onLabel: (ParsedNutritionLabel) -> Unit
 ) {
     val mediaImage = imageProxy.image
     if (mediaImage != null) {
         val input = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
+        // ML Kit callbacks run on the main thread (its default executor), NOT the
+        // analyzer executor `ex`. Routing them through `ex` previously crashed on
+        // teardown because onDispose() shuts `ex` down while in-flight process()
+        // tasks were still completing (ML Kit double-completed its internal task).
+        // Only the O(n²) parse is moved to Dispatchers.Default; the coroutine
+        // scope is cancelled on dispose, so no parse runs after teardown.
         recognizer.process(input)
             .addOnSuccessListener { visionText ->
                 val elements = mutableListOf<OcrElement>()
@@ -358,8 +371,11 @@ private fun processText(
                         }
                     }
                 }
-                onElements(elements)
+                scope.launch(Dispatchers.Default) {
+                    onLabel(parser.parseStructured(elements))
+                }
             }
+            .addOnFailureListener { imageProxy.close() }
             .addOnCompleteListener { imageProxy.close() }
     } else {
         imageProxy.close()

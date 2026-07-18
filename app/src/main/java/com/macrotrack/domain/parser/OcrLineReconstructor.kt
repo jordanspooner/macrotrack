@@ -111,6 +111,7 @@ class OcrLineReconstructor @Inject constructor() {
 
         // Refine the skew from the long rows (each is itself a line), then rebuild.
         val refined = mutableListOf<Double>()
+
         for (ch in chains) {
             if (ch.size < 3) continue
             val xs = ch.map { cx[it] }
