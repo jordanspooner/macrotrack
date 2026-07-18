@@ -88,9 +88,9 @@ are downloaded. Run it with:
 > don't sum to the stated kcal. Full "per-portion ⇒ per-100g" auto-conversion
 > can be layered on later.
 
-### ⏳ Phase 5: Settings & Polish (Days 13-15)
-- [ ] `SettingsScreen` with goals, sections, section distribution
-- [ ] `SettingsViewModel` with auto-computation
-- [ ] `CalendarModal` for week selection
-- [ ] Animation polish & performance audit
-- [ ] Final integration testing
+### ✅ Phase 5: Settings & Polish (Days 13-15)
+- [x] `SettingsScreen` with goals, sections, section distribution
+- [x] `SettingsViewModel` with auto-computation
+- [x] `CalendarModal` for week selection
+- [x] Animation polish & performance audit
+- [x] Final integration testing
