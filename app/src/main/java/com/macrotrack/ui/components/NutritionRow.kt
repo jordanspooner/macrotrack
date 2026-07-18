@@ -9,10 +9,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.macrotrack.domain.model.Macros
-import com.macrotrack.ui.theme.MacroCalories
-import com.macrotrack.ui.theme.MacroCarbs
-import com.macrotrack.ui.theme.MacroFat
-import com.macrotrack.ui.theme.MacroProtein
+import com.macrotrack.ui.theme.macroCaloriesColor
+import com.macrotrack.ui.theme.macroCarbsColor
+import com.macrotrack.ui.theme.macroFatColor
+import com.macrotrack.ui.theme.macroProteinColor
 import kotlin.math.roundToInt
 
 @Composable
@@ -21,29 +21,29 @@ fun NutritionRow(
     modifier: Modifier = Modifier
 ) {
     Row(
-        modifier = modifier,
+        modifier = modifier.padding(horizontal = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             text = "${macros.kcal.roundToInt()} kcal",
             style = MaterialTheme.typography.bodySmall,
-            color = MacroCalories
+            color = macroCaloriesColor()
         )
         Text(
             text = "${macros.proteinG.roundToInt()}g P",
             style = MaterialTheme.typography.bodySmall,
-            color = MacroProtein
+            color = macroProteinColor()
         )
         Text(
             text = "${macros.carbsG.roundToInt()}g C",
             style = MaterialTheme.typography.bodySmall,
-            color = MacroCarbs
+            color = macroCarbsColor()
         )
         Text(
             text = "${macros.fatG.roundToInt()}g F",
             style = MaterialTheme.typography.bodySmall,
-            color = MacroFat
+            color = macroFatColor()
         )
     }
 }

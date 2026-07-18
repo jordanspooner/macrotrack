@@ -10,6 +10,7 @@ import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
@@ -47,10 +48,85 @@ private val DarkColorScheme = darkColorScheme(
     scrim = md_theme_dark_scrim,
 )
 
-// We focus on dark theme for the premium look, but support light theme
 private val LightColorScheme = lightColorScheme(
-    /* Default light colors or explicit if desired */
+    primary = md_theme_light_primary,
+    onPrimary = md_theme_light_onPrimary,
+    primaryContainer = md_theme_light_primaryContainer,
+    onPrimaryContainer = md_theme_light_onPrimaryContainer,
+    secondary = md_theme_light_secondary,
+    onSecondary = md_theme_light_onSecondary,
+    secondaryContainer = md_theme_light_secondaryContainer,
+    onSecondaryContainer = md_theme_light_onSecondaryContainer,
+    tertiary = md_theme_light_tertiary,
+    onTertiary = md_theme_light_onTertiary,
+    tertiaryContainer = md_theme_light_tertiaryContainer,
+    onTertiaryContainer = md_theme_light_onTertiaryContainer,
+    error = md_theme_light_error,
+    errorContainer = md_theme_light_errorContainer,
+    onError = md_theme_light_onError,
+    onErrorContainer = md_theme_light_onErrorContainer,
+    background = md_theme_light_background,
+    onBackground = md_theme_light_onBackground,
+    surface = md_theme_light_surface,
+    onSurface = md_theme_light_onSurface,
+    surfaceVariant = md_theme_light_surfaceVariant,
+    onSurfaceVariant = md_theme_light_onSurfaceVariant,
+    outline = md_theme_light_outline,
+    inverseOnSurface = md_theme_light_inverseOnSurface,
+    inverseSurface = md_theme_light_inverseSurface,
+    inversePrimary = md_theme_light_inversePrimary,
+    surfaceTint = md_theme_light_surfaceTint,
+    outlineVariant = md_theme_light_outlineVariant,
+    scrim = md_theme_light_scrim,
 )
+
+/**
+ * Macro-coloured accents derived from the active color scheme so they adapt
+ * to Material You dynamic colour on Android 12+. Use these instead of the
+ * raw color constants in [Color.kt] whenever inside a @Composable.
+ *
+ * Mapping (intentional — uses the entire M3 tonal palette):
+ *  - kcal   → primary           (the headline metric gets the headline color)
+ *  - protein → tertiary          (cool, calm - protein is steady)
+ *  - carbs  → secondary          (medium emphasis, medium-energy macro)
+ *  - fat    → error              (warmest red — small amounts matter)
+ *
+ * When a macro exceeds its goal, the caller should switch to
+ * [MaterialTheme.colorScheme.error] regardless of the macro type to flag the
+ * overage clearly (see [overageColor]).
+ */
+@Composable
+fun macroCaloriesColor(): Color = MaterialTheme.colorScheme.primary
+
+@Composable
+fun macroProteinColor(): Color = MaterialTheme.colorScheme.tertiary
+
+@Composable
+fun macroCarbsColor(): Color = MaterialTheme.colorScheme.secondary
+
+@Composable
+fun macroFatColor(): Color = MaterialTheme.colorScheme.error
+
+/** Color used when a goal is exceeded. Always the scheme's error color. */
+@Composable
+fun overageColor(): Color = MaterialTheme.colorScheme.error
+
+/** Soft success indicator — typically primary (not green). */
+@Composable
+fun successColor(): Color = MaterialTheme.colorScheme.primary
+
+/** Soft warning — typically error but used in non-failure contexts. */
+@Composable
+fun warningColor(): Color = MaterialTheme.colorScheme.error
+
+/**
+ * A very faint surface tint for resting-state backgrounds (replaces the old
+ * `Color.Transparent` usage that produced dead-looking UI on dark themes).
+ * Roughly 4% opacity over the surface color.
+ */
+@Composable
+fun restingSurfaceColor(): Color =
+    MaterialTheme.colorScheme.surface.copy(alpha = 0.04f)
 
 @Composable
 fun MacroTrackTheme(
@@ -65,7 +141,7 @@ fun MacroTrackTheme(
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
         darkTheme -> DarkColorScheme
-        else -> LightColorScheme // Or DarkColorScheme to force dark mode
+        else -> LightColorScheme
     }
     val view = LocalView.current
     if (!view.isInEditMode) {
@@ -78,6 +154,8 @@ fun MacroTrackTheme(
 
     MaterialTheme(
         colorScheme = colorScheme,
+        typography = MacroTrackTypography,
+        shapes = MacroTrackShapes,
         content = content
     )
 }
