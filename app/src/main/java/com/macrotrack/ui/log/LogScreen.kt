@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.DocumentScanner
@@ -32,6 +33,10 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.macrotrack.ui.components.*
 import com.macrotrack.ui.settings.CalendarModal
+import com.macrotrack.ui.theme.MacroTrackShapes
+import com.macrotrack.ui.theme.Spacing
+import com.macrotrack.ui.theme.brandPrimary
+import com.macrotrack.ui.theme.restingSurfaceColor
 import com.macrotrack.domain.model.Section
 import java.time.LocalDate
 import java.time.LocalTime
@@ -160,40 +165,48 @@ fun LogScreen(
                 if (isEmpty) {
                     item {
                         Box(
-                            modifier = Modifier.fillParentMaxSize(),
+                            modifier = Modifier
+                                .fillParentMaxSize()
+                                .padding(Spacing.lg),
                             contentAlignment = Alignment.Center
                         ) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center
+                            Surface(
+                                color = restingSurfaceColor(),
+                                shape = MacroTrackShapes.large,
+                                modifier = Modifier.fillMaxWidth()
                             ) {
-                                Spacer(modifier = Modifier.weight(1f))
-                                Surface(
-                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f),
-                                    shape = MaterialTheme.shapes.large,
-                                    modifier = Modifier.size(64.dp)
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center,
+                                    modifier = Modifier.padding(Spacing.xxl)
                                 ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(
-                                            Icons.Default.RestaurantMenu,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.onPrimaryContainer
-                                        )
+                                    Surface(
+                                        color = brandPrimary().copy(alpha = 0.2f),
+                                        shape = CircleShape,
+                                        modifier = Modifier.size(72.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                Icons.Default.RestaurantMenu,
+                                                contentDescription = null,
+                                                tint = brandPrimary(),
+                                                modifier = Modifier.size(32.dp)
+                                            )
+                                        }
                                     }
+                                    Spacer(modifier = Modifier.height(Spacing.md))
+                                    Text(
+                                        text = "Nothing logged for this day",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Spacer(modifier = Modifier.height(Spacing.xs))
+                                    Text(
+                                        text = "Tap the + button below to add a meal",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
                                 }
-                                Spacer(modifier = Modifier.height(16.dp))
-                                Text(
-                                    text = "Nothing logged for this day",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "Tap the + button below to add a meal",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Spacer(modifier = Modifier.weight(1f))
                             }
                         }
                     }

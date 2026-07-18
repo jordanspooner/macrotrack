@@ -4,7 +4,9 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -17,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.macrotrack.domain.model.Macros
+import com.macrotrack.ui.theme.brandPrimary
 import com.macrotrack.ui.theme.macroCarbsColor
 import com.macrotrack.ui.theme.macroFatColor
 import com.macrotrack.ui.theme.macroProteinColor
@@ -28,7 +31,6 @@ fun SectionHeader(
     totalMacros: Macros,
     isExpanded: Boolean,
     onToggleExpand: () -> Unit,
-    accentColor: Color = macroProteinColor(),
     modifier: Modifier = Modifier,
 ) {
     val background = if (isExpanded) {
@@ -48,8 +50,10 @@ fun SectionHeader(
     ) {
         Box(
             modifier = Modifier
-                .size(12.dp)
-                .background(accentColor, CircleShape)
+                .width(6.dp)
+                .height(24.dp)
+                .clip(RoundedCornerShape(3.dp))
+                .background(brandPrimary())
         )
         Spacer(modifier = Modifier.width(12.dp))
 
@@ -68,25 +72,10 @@ fun SectionHeader(
             }
         }
 
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "${totalMacros.proteinG.roundToInt()}g P",
-                style = MaterialTheme.typography.bodyMedium,
-                color = macroProteinColor()
-            )
-            Text(
-                text = "${totalMacros.carbsG.roundToInt()}g C",
-                style = MaterialTheme.typography.bodyMedium,
-                color = macroCarbsColor()
-            )
-            Text(
-                text = "${totalMacros.fatG.roundToInt()}g F",
-                style = MaterialTheme.typography.bodyMedium,
-                color = macroFatColor()
-            )
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            MiniMacro(label = "P", value = totalMacros.proteinG, color = macroProteinColor())
+            MiniMacro(label = "C", value = totalMacros.carbsG, color = macroCarbsColor())
+            MiniMacro(label = "F", value = totalMacros.fatG, color = macroFatColor())
         }
 
         Spacer(modifier = Modifier.width(8.dp))
@@ -94,5 +83,12 @@ fun SectionHeader(
             imageVector = if (isExpanded) Icons.Filled.KeyboardArrowDown else Icons.AutoMirrored.Filled.KeyboardArrowRight,
             contentDescription = if (isExpanded) "Collapse" else "Expand"
         )
+    }
+}
+
+@Composable
+private fun MiniMacro(label: String, value: Float, color: Color) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text("${(value).roundToInt()}g $label", style = MaterialTheme.typography.labelSmall, color = color)
     }
 }
