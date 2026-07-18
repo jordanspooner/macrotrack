@@ -34,8 +34,8 @@ class MainActivity : ComponentActivity() {
                         composable("log") {
                             LogScreen(
                                 onNavigateToSettings = { navController.navigate("settings") },
-                                onNavigateToAddFood = { sectionId, date ->
-                                    navController.navigate("add?date=$date&sectionId=$sectionId")
+                                onNavigateToAddFood = { sectionId, date, mode ->
+                                    navController.navigate("add?date=$date&sectionId=$sectionId&mode=$mode")
                                 }
                             )
                         }
@@ -45,7 +45,7 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         composable(
-                            route = "add?date={date}&sectionId={sectionId}"
+                            route = "add?date={date}&sectionId={sectionId}&mode={mode}"
                         ) {
                             AddScreen(
                                 onBack = { navController.popBackStack() }

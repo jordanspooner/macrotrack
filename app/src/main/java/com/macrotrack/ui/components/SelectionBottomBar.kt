@@ -2,11 +2,15 @@ package com.macrotrack.ui.components
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DriveFileMove
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -52,10 +56,18 @@ fun SelectionBottomBar(
 
             Row {
                 TextButton(onClick = onCopyClick) {
-                    Text("Copy")
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.ContentCopy, contentDescription = null)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Copy")
+                    }
                 }
                 TextButton(onClick = onMoveClick) {
-                    Text("Move")
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.DriveFileMove, contentDescription = null)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Move")
+                    }
                 }
                 IconButton(onClick = onDeleteClick) {
                     Icon(Icons.Default.Delete, contentDescription = "Delete Selected")

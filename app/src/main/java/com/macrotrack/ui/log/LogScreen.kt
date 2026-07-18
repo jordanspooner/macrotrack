@@ -6,17 +6,26 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.DocumentScanner
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material.icons.filled.RestaurantMenu
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.macrotrack.ui.components.*
@@ -31,12 +40,13 @@ import java.time.format.DateTimeFormatter
 fun LogScreen(
     viewModel: LogViewModel = hiltViewModel(),
     onNavigateToSettings: () -> Unit,
-    onNavigateToAddFood: (sectionId: Long, date: String) -> Unit
+    onNavigateToAddFood: (sectionId: Long, date: String, mode: String) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val reseedMessage by viewModel.reseedMessage.collectAsState()
-    var showDevMenu by remember { mutableStateOf(false) }
     var showCalendar by remember { mutableStateOf(false) }
+    var showAddMenu by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(reseedMessage) {
@@ -49,34 +59,17 @@ fun LogScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("MacroTrack") },
+                title = { Text("MacroTrack", style = MaterialTheme.typography.headlineSmall) },
                 actions = {
-                    Box {
-                        IconButton(onClick = { showDevMenu = true }) {
-                            Icon(Icons.Default.MoreVert, contentDescription = "More options")
-                        }
-                        DropdownMenu(
-                            expanded = showDevMenu,
-                            onDismissRequest = { showDevMenu = false }
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text("Rebuild food database") },
-                                onClick = {
-                                    showDevMenu = false
-                                    viewModel.onReseedFoodDatabase()
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Settings") },
-                                onClick = {
-                                    showDevMenu = false
-                                    onNavigateToSettings()
-                                }
-                            )
-                        }
-                    }
-                    IconButton(onClick = onNavigateToSettings) {
-                        Icon(Icons.Default.Settings, contentDescription = "Settings")
+                    IconButton(
+                        onClick = onNavigateToSettings,
+                        modifier = Modifier.size(48.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Settings,
+                            contentDescription = "Settings",
+                            modifier = Modifier.size(24.dp)
+                        )
                     }
                 }
             )
@@ -93,7 +86,7 @@ fun LogScreen(
                             selectedCount = selectionMode.selectedIds.size,
                             onCopyClick = { viewModel.copySelectedEntries() },
                             onMoveClick = { viewModel.moveSelectedEntries() },
-                            onDeleteClick = { viewModel.deleteSelectedEntries() },
+                            onDeleteClick = { showDeleteConfirm = true },
                             onCloseClick = { viewModel.exitSelectionMode() }
                         )
                     }
@@ -111,92 +104,150 @@ fun LogScreen(
                         )
                     }
                 }
-                SelectionMode.Off -> {
-                    val dateIso = uiState.selectedDate.format(DateTimeFormatter.ISO_LOCAL_DATE)
-                    val defaultSectionId = defaultSectionId(uiState.sections.map { it.section })
-                    AddFoodBottomBar(
-                        onSearchClick = { onNavigateToAddFood(defaultSectionId, dateIso) },
-                        onLabelScanClick = { onNavigateToAddFood(defaultSectionId, dateIso) },
-                        onBarcodeScanClick = { onNavigateToAddFood(defaultSectionId, dateIso) },
-                        onQuickAddClick = { onNavigateToAddFood(defaultSectionId, dateIso) }
-                    )
+                SelectionMode.Off -> {}
+            }
+        },
+        floatingActionButton = {
+            val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+            AnimatedVisibility(
+                visible = uiState.selectionMode == SelectionMode.Off && !imeVisible,
+                enter = fadeIn() + slideInVertically(initialOffsetY = { it }),
+                exit = fadeOut() + slideOutVertically(targetOffsetY = { it })
+            ) {
+                FloatingActionButton(
+                    onClick = { showAddMenu = true },
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "Add food")
                 }
             }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { paddingValues ->
         if (uiState.isLoading) {
-            // Loading indicator
-            return@Scaffold
-        }
-
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-        ) {
-            item {
-                WeekDateStrip(
-                    weekDays = uiState.weekDates,
-                    onDateSelected = { day -> viewModel.onDateSelected(day.date) },
-                    onOpenCalendar = { showCalendar = true }
-                )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
             }
-
-            item {
-                MacroSummaryCard(summary = uiState.dailySummary)
-            }
-
-            uiState.sections.forEach { sectionWithEntries ->
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+            ) {
                 item {
-                    SectionHeader(
-                        name = sectionWithEntries.section.name,
-                        totalMacros = sectionWithEntries.totalMacros,
-                        isExpanded = sectionWithEntries.isExpanded,
-                        onToggleExpand = { viewModel.toggleSectionExpanded(sectionWithEntries.section.id) }
+                    WeekDateStrip(
+                        weekDays = uiState.weekDates,
+                        onDateSelected = { day -> viewModel.onDateSelected(day.date) },
+                        onOpenCalendar = { showCalendar = true }
                     )
                 }
 
-                if (sectionWithEntries.isExpanded) {
-                    if (sectionWithEntries.entries.isEmpty()) {
+                item {
+                    MacroSummaryCard(summary = uiState.dailySummary)
+                }
+
+                val isEmpty =
+                    uiState.sections.isNotEmpty() && uiState.sections.all { it.entries.isEmpty() }
+
+                if (isEmpty) {
+                    item {
+                        Box(
+                            modifier = Modifier.fillParentMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Spacer(modifier = Modifier.weight(1f))
+                                Surface(
+                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f),
+                                    shape = MaterialTheme.shapes.large,
+                                    modifier = Modifier.size(64.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            Icons.Default.RestaurantMenu,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onPrimaryContainer
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Text(
+                                    text = "Nothing logged for this day",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "Tap the + button below to add a meal",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(modifier = Modifier.weight(1f))
+                            }
+                        }
+                    }
+                } else {
+                    uiState.sections.forEach { sectionWithEntries ->
                         item {
-                            Text(
-                                text = "No items logged",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(horizontal = 32.dp, vertical = 8.dp)
+                            SectionHeader(
+                                name = sectionWithEntries.section.name,
+                                totalMacros = sectionWithEntries.totalMacros,
+                                isExpanded = sectionWithEntries.isExpanded,
+                                onToggleExpand = { viewModel.toggleSectionExpanded(sectionWithEntries.section.id) }
                             )
                         }
-                    } else {
-                        items(
-                            items = sectionWithEntries.entries,
-                            key = { it.id }
-                        ) { entry ->
-                            val isSelected = when (val mode = uiState.selectionMode) {
-                                is SelectionMode.Selecting -> mode.selectedIds.contains(entry.id)
-                                is SelectionMode.ChoosingDestination -> mode.selectedIds.contains(entry.id)
-                                SelectionMode.Off -> false
-                            }
 
-                            FoodItemCard(
-                                entry = entry,
-                                isSelected = isSelected,
-                                onClick = {
-                                    if (uiState.selectionMode != SelectionMode.Off) {
-                                        viewModel.toggleSelectionMode(entry.id)
-                                    }
-                                },
-                                onLongClick = {
-                                    viewModel.toggleSelectionMode(entry.id)
+                        if (sectionWithEntries.isExpanded) {
+                            if (sectionWithEntries.entries.isEmpty()) {
+                                item {
+                                    Text(
+                                        text = "No items logged",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(horizontal = 32.dp, vertical = 8.dp)
+                                    )
                                 }
-                            )
+                            } else {
+                                items(
+                                    items = sectionWithEntries.entries,
+                                    key = { it.id }
+                                ) { entry ->
+                                    val isSelected = when (val mode = uiState.selectionMode) {
+                                        is SelectionMode.Selecting -> mode.selectedIds.contains(entry.id)
+                                        is SelectionMode.ChoosingDestination -> mode.selectedIds.contains(entry.id)
+                                        SelectionMode.Off -> false
+                                    }
+
+                                    FoodItemCard(
+                                        entry = entry,
+                                        isSelected = isSelected,
+                                        onClick = {
+                                            if (uiState.selectionMode != SelectionMode.Off) {
+                                                viewModel.toggleSelectionMode(entry.id)
+                                            }
+                                        },
+                                        onLongClick = {
+                                            viewModel.toggleSelectionMode(entry.id)
+                                        }
+                                    )
+                                }
+                            }
                         }
                     }
                 }
+
+                // Add a spacer at the bottom
+                item { Spacer(modifier = Modifier.height(16.dp)) }
             }
-            
-            // Add a spacer at the bottom
-            item { Spacer(modifier = Modifier.height(16.dp)) }
         }
     }
 
@@ -208,6 +259,119 @@ fun LogScreen(
                 showCalendar = false
             },
             onDismiss = { showCalendar = false },
+        )
+    }
+
+    if (showAddMenu) {
+        val defaultId = defaultSectionId(uiState.sections.map { it.section })
+        val defaultName =
+            uiState.sections.firstOrNull { it.section.id == defaultId }?.section?.name ?: "today"
+        val dateIso = uiState.selectedDate.format(DateTimeFormatter.ISO_LOCAL_DATE)
+        ModalBottomSheet(onDismissRequest = { showAddMenu = false }) {
+            Column(Modifier.padding(bottom = 24.dp)) {
+                Text(
+                    "Add food to $defaultName",
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
+                )
+                AddMenuOption(
+                    icon = Icons.Default.Search,
+                    title = "Search foods",
+                    subtitle = "Browse the food database",
+                    onClick = { onNavigateToAddFood(defaultId, dateIso, "search") }
+                )
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                AddMenuOption(
+                    icon = Icons.Default.DocumentScanner,
+                    title = "Scan nutrition label",
+                    subtitle = "OCR from a packaged food label",
+                    onClick = { onNavigateToAddFood(defaultId, dateIso, "label") }
+                )
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                AddMenuOption(
+                    icon = Icons.Default.QrCodeScanner,
+                    title = "Scan barcode",
+                    subtitle = "Look up by EAN",
+                    onClick = { onNavigateToAddFood(defaultId, dateIso, "barcode") }
+                )
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                AddMenuOption(
+                    icon = Icons.Default.Edit,
+                    title = "Quick add macros",
+                    subtitle = "Enter macros manually",
+                    onClick = { onNavigateToAddFood(defaultId, dateIso, "quick") }
+                )
+            }
+        }
+    }
+
+    if (showDeleteConfirm) {
+        val selectedCount =
+            (uiState.selectionMode as? SelectionMode.Selecting)?.selectedIds?.size ?: 0
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("Delete $selectedCount item(s)?") },
+            text = { Text("This cannot be undone.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.deleteSelectedEntries()
+                        showDeleteConfirm = false
+                    }
+                ) {
+                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun AddMenuOption(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(72.dp)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Surface(
+            color = MaterialTheme.colorScheme.primaryContainer,
+            shape = MaterialTheme.shapes.medium,
+            modifier = Modifier.size(48.dp)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            }
+        }
+        Spacer(modifier = Modifier.width(16.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleLarge)
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Icon(
+            Icons.Default.ChevronRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }
