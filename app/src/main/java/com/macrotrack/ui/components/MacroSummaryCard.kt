@@ -186,7 +186,8 @@ private fun MacroRow(
         Spacer(Modifier.height(Spacing.xs))
         MacroBar(
             progress = percent,
-            color = resolvedColor,
+            color = color,
+            overageColor = overageColor(),
             modifier = Modifier
                 .fillMaxWidth()
                 .height(4.dp)
