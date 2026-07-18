@@ -2,11 +2,6 @@ package com.macrotrack.domain.parser
 
 import kotlin.math.abs
 
-/**
- * Confidence level for a resolved field, based on frequency and reading count.
- */
-enum class Confidence { HIGH, MEDIUM, DERIVED, NULL }
-
 private data class ResolvedFields(
     val kcal: Float?,
     val fat: Float?,
@@ -19,14 +14,19 @@ private data class ResolvedFields(
  * Rolling consensus over successive OCR readings of a nutrition label.
  *
  * For every field we keep a bounded history (the last [HISTORY_SIZE] non-null,
- * *plausible* readings). The value we surface is determined by MAP scoring:
- * cluster readings, generate scale-variant candidates, score combinations
- * against all evidence using hard physical constraints and soft invariant
- * couplings (Atwater, kJ↔kcal, perServing↔per100).
+ * *plausible* readings) and run MAP scoring across them: cluster readings,
+ * generate scale-variant candidates, and score combinations against all
+ * evidence using hard physical constraints and soft invariant couplings
+ * (Atwater, kJ↔kcal, perServing↔per100). The result is the live value shown in
+ * the preview pie chart while scanning.
  *
- * A field becomes "confirmed" once it has been seen at least [MIN_READS] times
- * AND the best value accounts for strictly more than half of all valid readings.
- * Once confirmed the value is locked and will never change again.
+ * Locking is "all-or-nothing" for the core four fields: kcal plus all three
+ * macros lock together only once we are highly confident about the *whole*
+ * combo (each field has a majority of agreeing readings AND the combo is
+ * internally consistent). Until then nothing is locked and the preview keeps
+ * refining. Once locked, [resolveAllFields] freezes on the locked values, so
+ * the chart stops moving and the final label can never contradict what the
+ * user confirmed.
  *
  * Any reading that is individually implausible (e.g. 5000 kcal per 100g) is
  * thrown out immediately and is *not* counted towards the confidence history.
@@ -104,8 +104,14 @@ data class ConsensusField<T : Any> private constructor(
 
     fun tryLock(valid: Boolean): ConsensusField<T> {
         if (locked != null || !valid) return this
-        val b = best ?: return this
-        return if (b.count >= MIN_READS && b.count > readCount / 2) copy(locked = b.value) else this
+        return if (canLock()) copy(locked = best?.value) else this
+    }
+
+    /** True if this field has enough agreeing readings to lock. */
+    fun canLock(): Boolean {
+        if (locked != null) return true
+        val b = best ?: return false
+        return b.count >= MIN_READS && b.count > readCount / 2
     }
 
     /**
@@ -119,8 +125,8 @@ data class ConsensusField<T : Any> private constructor(
     }
 
     companion object {
-        const val HISTORY_SIZE = 100
-        const val MIN_READS = 5
+        const val HISTORY_SIZE = 20
+        const val MIN_READS = 3
     }
 }
 
@@ -131,14 +137,20 @@ data class LabelConsensus(
     val fat: ConsensusField<Float> = floatField(MACRO_PLAUSIBLE),
     val servingG: ConsensusField<Float> = floatField(SERVING_PLAUSIBLE),
     val servingLabel: ConsensusField<String> = ConsensusField(plausible = { it.isNotBlank() }),
-    val readings: List<Reading> = emptyList()
+    val readings: List<Reading> = emptyList(),
+    val kcalDerived: Boolean = false
 ) {
     fun accept(p: ParsedNutritionLabel): LabelConsensus {
         val servingG = p.servingSizeG
         val resolved = resolvePer100(p, servingG)
 
+        // kcal is "derived" when this reading supplied macros but no kcal —
+        // we surface it so the UI can mark the energy value as estimated.
+        val derived = resolved.kcal == null &&
+            (resolved.fat != null || resolved.carbs != null || resolved.protein != null)
+
         // Record the full per-scan reading (per-100g + per-serving) so the MAP
-        // can score combinations against co-occurring evidence.
+        // resolver can score combinations against co-occurring evidence.
         val scan = Reading(
             kj = resolved.kj,
             kcal = resolved.kcal,
@@ -160,7 +172,8 @@ data class LabelConsensus(
             fat = fat.observe(resolved.fat),
             servingG = if (servingG != null) this.servingG.observe(servingG) else this.servingG,
             servingLabel = servingLabel.observe(p.servingLabel),
-            readings = newReadings
+            readings = newReadings,
+            kcalDerived = kcalDerived || derived
         )
 
         // Detect per-100g vs per-serving confusion
@@ -173,18 +186,31 @@ data class LabelConsensus(
         updated = updated.fixTenXErrors()
 
         val valid = updated.isValid
-        val labelValid = valid.plausible && valid.consistent
+        // We only lock the core four once every field either has enough agreeing
+        // evidence to lock, or has no readings at all (nil — genuinely absent from
+        // the label). Fields with partial evidence that hasn't reached the
+        // threshold block the lock.
+        val coreReady = listOf(updated.kcal, updated.protein, updated.carbs, updated.fat).all {
+            it.canLock() || it.readCount == 0
+        }
+        val lockCore = valid.plausible && valid.consistent && coreReady
         return updated.copy(
-            kcal = updated.kcal.tryLock(labelValid),
-            protein = updated.protein.tryLock(labelValid),
-            carbs = updated.carbs.tryLock(labelValid),
-            fat = updated.fat.tryLock(labelValid),
+            kcal = updated.kcal.tryLock(lockCore),
+            protein = updated.protein.tryLock(lockCore),
+            carbs = updated.carbs.tryLock(lockCore),
+            fat = updated.fat.tryLock(lockCore),
             servingG = updated.servingG.tryLock(valid.plausible),
             servingLabel = updated.servingLabel.tryLock(valid.plausible),
             readings = newReadings
         )
     }
 
+    /**
+     * Produce the final label. While scanning, this is the live MAP-consensus
+     * of all readings (the same values shown in the pie chart). Once kcal and
+     * all three macros are locked, [resolveAllFields] freezes on the locked
+     * values, so the output can never contradict what the user confirmed.
+     */
     fun toParsedLabel(): ParsedNutritionLabel {
         val resolved = resolveAllFields()
         return ParsedNutritionLabel(
@@ -196,19 +222,40 @@ data class LabelConsensus(
             ),
             perServing = null,
             servingSizeG = resolved.servingSizeG ?: servingG.value,
-            servingLabel = servingLabel.value
+            servingLabel = servingLabel.value,
+            kcalDerived = kcalDerived
         )
     }
 
+    /**
+     * The label is ready to confirm only once kcal AND all three macros are
+     * locked (i.e. we were highly confident about the whole combo) and the
+     * locked values add up consistently.
+     */
     val isReady: Boolean
         get() {
             val k = kcal.bestValue
             val p = protein.bestValue
             val c = carbs.bestValue
             val f = fat.bestValue
-            return kcal.confirmed &&
-                (protein.confirmed || carbs.confirmed || fat.confirmed) &&
-                isValid(k, p, c, f).plausible
+            val v = isValid(k, p, c, f)
+            val fieldsReady = listOf(kcal, protein, carbs, fat).all {
+                it.canLock() || it.readCount == 0
+            }
+            return fieldsReady && v.plausible && v.consistent
+        }
+
+    val isKcalReady: Boolean
+        get() = kcal.confirmed
+
+    val isFullyConsistent: Boolean
+        get() {
+            val k = kcal.bestValue
+            val p = protein.bestValue
+            val c = carbs.bestValue
+            val f = fat.bestValue
+            if (k == null || p == null || c == null || f == null) return false
+            return isValid(k, p, c, f).consistent
         }
 
     // ── Per-100g resolution ────────────────────────────────────────
@@ -326,9 +373,31 @@ data class LabelConsensus(
         return field.discardValue(large)
     }
 
+    private fun resolveFromBestValues(): ResolvedFields {
+        return ResolvedFields(
+            kcal = kcal.value,
+            fat = fat.value,
+            carbs = carbs.value,
+            protein = protein.value,
+            servingSizeG = servingG.value
+        )
+    }
+
     // ── MAP-based field resolution ─────────────────────────────────
 
     private fun resolveAllFields(): ResolvedFields {
+        // FREEZE: once kcal and all three macros are locked we are done — the
+        // confirmed combo is final and must not drift as more scans arrive.
+        if (kcal.locked != null && protein.locked != null && carbs.locked != null && fat.locked != null) {
+            return ResolvedFields(
+                kcal = kcal.locked,
+                fat = fat.locked,
+                carbs = carbs.locked,
+                protein = protein.locked,
+                servingSizeG = servingG.locked ?: servingG.value
+            )
+        }
+
         if (readCount < MIN_READS_FOR_MAP) return resolveFromBestValues()
 
         val allReadings = collectReadings()
@@ -403,22 +472,14 @@ data class LabelConsensus(
             }
         }
 
+        // Respect locks: a field already confirmed keeps its locked value, so
+        // the surfaced combo can never contradict what the user accepted.
         return ResolvedFields(
-            kcal = bestKcal,
-            fat = bestFat,
-            carbs = bestCarbs,
-            protein = bestProt,
-            servingSizeG = serving
-        )
-    }
-
-    private fun resolveFromBestValues(): ResolvedFields {
-        return ResolvedFields(
-            kcal = kcal.value,
-            fat = fat.value,
-            carbs = carbs.value,
-            protein = protein.value,
-            servingSizeG = servingG.value
+            kcal = kcal.locked ?: bestKcal,
+            fat = fat.locked ?: bestFat,
+            carbs = carbs.locked ?: bestCarbs,
+            protein = protein.locked ?: bestProt,
+            servingSizeG = servingG.locked ?: serving
         )
     }
 
@@ -429,6 +490,14 @@ data class LabelConsensus(
     ): Double {
         // Hard constraints
         if (fat + carbs + prot > 100f) return Double.NEGATIVE_INFINITY
+
+        // Stage 3A: Hard Atwater constraint — reject combos where Atwater estimate
+        // is wildly off from the kcal candidate (25% tolerance).
+        if (kcal > 0f && fat > 0f && carbs > 0f && prot > 0f) {
+            val atwater = 9f * fat + 4f * carbs + 4f * prot
+            val relErr = abs(atwater - kcal) / maxOf(kcal, 1f)
+            if (relErr > 0.25f) return Double.NEGATIVE_INFINITY
+        }
 
         var score = 0.0
         val n = readCount.toFloat()
@@ -550,44 +619,6 @@ data class LabelConsensus(
         return candidates.ifEmpty {
             val sv = servingG.bestValue
             if (sv != null) listOf(sv to 0f) else emptyList()
-        }
-    }
-
-    // ── Field derivation & confidence ──────────────────────────────
-
-    private fun deriveField(
-        field: ConsensusField<Float>,
-        clusters: List<Cluster>,
-        deriveFrom: (() -> Float?)?,
-        confidence: Confidence
-    ): Pair<Float?, Confidence> {
-        val modal = clusters.maxByOrNull { it.count }
-        if (modal == null || modal.count < 3) return (deriveFrom?.invoke()) to Confidence.DERIVED
-        val freq = modal.count.toFloat() / readCount
-        return when {
-            freq > 0.6f && readCount >= ConsensusField.MIN_READS -> modal.value to Confidence.HIGH
-            freq > 0.4f && readCount >= ConsensusField.MIN_READS -> modal.value to Confidence.MEDIUM
-            else -> modal.value to Confidence.MEDIUM
-        }
-    }
-
-    // ── Per-serving field resolution ───────────────────────────────
-
-    private fun resolvePerServField(
-        field: ConsensusField<Float>,
-        per100Field: ConsensusField<Float>,
-        serving: Float?
-    ): Pair<Float?, Confidence> {
-        val distinct = field.distinctValues
-        if (distinct.isEmpty()) return null to Confidence.NULL
-        val modal = distinct.maxByOrNull { it.second }
-        if (modal == null) return null to Confidence.NULL
-        val n = readCount.toFloat()
-        val freq = modal.second / n
-        return when {
-            n >= 3 && freq > 0.6f -> modal.first to Confidence.HIGH
-            n >= 2 && freq > 0.4f -> modal.first to Confidence.MEDIUM
-            else -> modal.first to Confidence.MEDIUM
         }
     }
 

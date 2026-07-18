@@ -14,14 +14,17 @@ data class ParsedReading(
     val kcal: Float?,
     val fat: Float?,
     val carbs: Float?,
-    val protein: Float?
+    val protein: Float?,
+    val kjPerServing: Float? = null,
+    val kcalPerServing: Float? = null
 )
 
 data class ParsedNutritionLabel(
     val per100: MacroValues?,
     val perServing: MacroValues?,
     val servingSizeG: Float?,
-    val servingLabel: String?
+    val servingLabel: String?,
+    val kcalDerived: Boolean = false
 )
 
 data class MacroValues(
@@ -63,7 +66,7 @@ class LabelParser @Inject constructor() {
 
         return ParsedNutritionLabel(
             per100 = per100?.let { MacroValues(kcal = it.kcal, fat = it.fat, carbs = it.carbs, protein = it.protein, kj = it.kj) },
-            perServing = perServing?.let { MacroValues(kcal = it.kcal, fat = it.fat, carbs = it.carbs, protein = it.protein, kj = it.kj) },
+            perServing = perServing?.let { MacroValues(kcal = it.kcalPerServing, fat = it.fat, carbs = it.carbs, protein = it.protein, kj = it.kjPerServing) },
             servingSizeG = serving,
             servingLabel = null
         )
@@ -96,7 +99,7 @@ class LabelParser @Inject constructor() {
         val tokens = tokenize(normed)
         val positions = findKeywordPositions(tokens)
 
-        val (kj100, kcal100, _, _) = extractEnergy(tokens, positions)
+        val (kj100, kcal100, kjServ, kcalServ) = extractEnergy(tokens, positions)
         val (fat100, _) = extractMacro(tokens, positions, "fat", 100f)
         val (carb100, _) = extractMacro(tokens, positions, "carbohydrate", 100f)
         val (prot100, _) = extractMacro(tokens, positions, "protein", 100f)
@@ -110,7 +113,9 @@ class LabelParser @Inject constructor() {
             kcal = kcal100,
             fat = fatR,
             carbs = carbR,
-            protein = protR
+            protein = protR,
+            kjPerServing = kjServ,
+            kcalPerServing = kcalServ
         )
     }
 
@@ -120,6 +125,8 @@ class LabelParser @Inject constructor() {
         var t = text.lowercase()
         t = t.replace(Regex("[kK][iI1j3]"), " kj ")
         t = t.replace(Regex("[kK]/"), " kj ")
+        // OCR often misreads the "j" in "kj" as a bracket: k] k} k)
+        t = t.replace(Regex("[kK][\\]\\}\\)]"), " kj ")
         t = t.replace(Regex("[kK][cC][aAeE][lLkK]"), " kcal ")
         t = t.replace(',', '.')
         for ((a, b) in listOf("ı" to "i", "ä" to "a", "ö" to "o", "ü" to "u", "ç" to "c", "&" to " ", "ô" to "o")) {
@@ -153,13 +160,16 @@ class LabelParser @Inject constructor() {
         "kj" to listOf("kj"),
         "kcal" to listOf("kcal"),
         "serving" to listOf("serving", "portion", "slice", "tablespoon", "teaspoon"),
-        "reference" to listOf("reference", "intake")
+        "reference" to listOf("reference", "intake"),
+        "per" to listOf("per")
     )
 
     private val STOP_KEYWORDS = setOf(
         "energy", "fat", "saturates", "carbohydrate", "sugar", "protein",
         "fibre", "salt", "kj", "kcal", "serving", "reference", "of", "which", "from", "per"
     )
+
+    private val FILLER_KEYWORDS = setOf("of", "which", "from")
 
     private fun classifyToken(tok: String): Pair<String?, Int> {
         val t = tok.lowercase().trim('.', ',', ';', ':', '-')
@@ -278,12 +288,26 @@ class LabelParser @Inject constructor() {
     private fun scanNumbersAfter(tokens: List<String>, startIdx: Int, maxNums: Int = 6): List<Triple<Float, Boolean, String>> {
         val nums = mutableListOf<Triple<Float, Boolean, String>>()
         var i = startIdx + 1
+        var foundFirstNumber = false
         while (i < tokens.size && nums.size < maxNums) {
             val tok = tokens[i]
-            if (classifyToken(tok).first in STOP_KEYWORDS) break
+            val cls = classifyToken(tok).first
+            if (cls != null && cls in STOP_KEYWORDS) {
+                // Before the first number, skip filler words ("of which …")
+                // so we can cross line breaks without losing the value.
+                // Field/section keywords ("per", "carbohydrate", …) always stop.
+                if (foundFirstNumber || cls !in FILLER_KEYWORDS) break
+                i++; continue
+            }
             val (v, hd, iz) = cleanNumber(tok)
             i++
-            if (v != null) nums.add(Triple(v, hd, tok))
+            // A bare "9" with no decimal is almost always the unit letter
+            // ("g") misread by OCR, not a real macro reading. Skip it so it
+            // can't be picked up as fat/carbs/protein.
+            if (v != null && !(v == 9.0f && !hd)) {
+                nums.add(Triple(v, hd, tok))
+                foundFirstNumber = true
+            }
         }
         return nums
     }
@@ -300,103 +324,170 @@ class LabelParser @Inject constructor() {
         val allKj = mutableListOf<Float>()
         val allKcal = mutableListOf<Float>()
 
+        // Value immediately adjacent (±4 tokens) to a unit token, on either
+        // side. Stops at a field keyword, but skips the "energy"/"energie"
+        // label word (it is part of the "Energy kJ/Energie" unit, not a
+        // separate field) so the real value just beyond it is still found.
+        fun numberNear(idx: Int): Float? {
+            for (d in listOf(-1, 1)) {
+                var k = idx + d
+                var steps = 0
+                while (k in tokens.indices && steps < 4) {
+                    val cls = classifyToken(tokens[k]).first
+                    if (cls != null && cls != "energy") break
+                    val (v, _, _) = cleanNumber(tokens[k])
+                    if (v != null) return v
+                    k += d; steps++
+                }
+            }
+            return null
+        }
+
+        // The n-th number following a token (skipping non-numbers), within a
+        // small window so we don't reach into a distant field.
+        fun numberAfter(idx: Int, n: Int): Float? {
+            var count = 0
+            var k = idx + 1
+            var steps = 0
+            while (k < tokens.size && steps < 6) {
+                val (v, _, _) = cleanNumber(tokens[k])
+                if (v != null) {
+                    count++
+                    if (count == n) return v
+                }
+                k++; steps++
+            }
+            return null
+        }
+
         fun findHeaderPairs(): List<Quadruple<Float, Float, Int, Int>> {
             val pairs = mutableListOf<Quadruple<Float, Float, Int, Int>>()
             val energyIdx = pos["energy"]?.map { it.first } ?: emptyList()
 
-            // Pattern 1: two-row "energy kj num1 num2" / "energy kcal num3 num4"
+            // Pattern 1: "energy kJ <num>" / "energy kcal <num>" on adjacent rows.
+            // Values follow their unit token (skipping the foreign "energie"
+            // word), so use numberAfter (forward-only) to avoid picking up the
+            // sibling value that sits between the two units.
             for (ei in energyIdx) {
                 val nearKj = kjIdx.firstOrNull { ei < it && it <= ei + 3 }
                 val nearKcal = kcalIdx.firstOrNull { ei < it && it <= ei + 3 }
                 if (nearKj != null && nearKcal != null) continue
-
                 if (nearKj != null) {
-                    for (ei2 in energyIdx) {
-                        if (ei2 <= nearKj) continue
-                        val nearKcal2 = kcalIdx.firstOrNull { ei2 < it && it <= ei2 + 3 } ?: continue
-                        val numsKj = mutableListOf<Pair<Float, Int>>()
-                        var k = nearKj + 1
-                        while (k < tokens.size && numsKj.size < 4) {
-                            if (classifyToken(tokens[k]).first in setOf("kj", "kcal", "fat", "carbohydrate", "protein", "energy")) break
-                            val (v, _, _) = cleanNumber(tokens[k])
-                            if (v != null) numsKj.add(v to k)
-                            k++
-                        }
-                        val numsKcal = mutableListOf<Pair<Float, Int>>()
-                        k = nearKcal2 + 1
-                        while (k < tokens.size && numsKcal.size < 4) {
-                            if (classifyToken(tokens[k]).first in setOf("kj", "kcal", "fat", "carbohydrate", "protein", "energy")) break
-                            val (v, _, _) = cleanNumber(tokens[k])
-                            if (v != null) numsKcal.add(v to k)
-                            k++
-                        }
-                        for (j in 0 until minOf(numsKj.size, numsKcal.size)) {
-                            val kjV = numsKj[j].first; val kcalV = numsKcal[j].first
-                            if (kcalV > 0 && kjV / kcalV in 2.0..8.0) {
-                                pairs.add(Quadruple(kjV, kcalV, numsKj[j].second, numsKcal[j].second))
-                            }
-                        }
-                        break
+                    val nearKcal2 = kcalIdx.firstOrNull { it > nearKj && it <= nearKj + 10 } ?: continue
+                    val kjV = numberNear(nearKj) ?: continue
+                    val kcalV = numberNear(nearKcal2) ?: continue
+                    if (kcalV > 0 && kjV / kcalV in 2.0..8.0) {
+                        pairs.add(Quadruple(kjV, kcalV, nearKj, nearKcal2))
                     }
                     continue
                 }
-
+                if (nearKcal != null) {
+                    val nearKj2 = kjIdx.firstOrNull { it < nearKcal && it >= nearKcal - 10 } ?: continue
+                    val kjV = numberNear(nearKj2) ?: continue
+                    val kcalV = numberNear(nearKcal) ?: continue
+                    if (kcalV > 0 && kjV / kcalV in 2.0..8.0) {
+                        pairs.add(Quadruple(kjV, kcalV, nearKj2, nearKcal))
+                    }
+                    continue
+                }
             }
 
-            // Pattern 2: kj+kcal close together (units before numbers, or
-            // interleaved). Runs over every kJ index, independent of any
-            // "energy" keyword — this is the common single-line layout and
-            // must not be nested inside the energy loop above.
-            for (ki in kjIdx) {
-                for (ci in kcalIdx) {
-                    if (ci !in (ki + 1)..(ki + 5)) continue
-                    val numsBetween = mutableListOf<Pair<Float, Int>>()
-                    for (k2 in (ki + 1) until ci) {
-                        val (v, _, _) = cleanNumber(tokens[k2])
-                        if (v != null) numsBetween.add(v to k2)
+            // Pattern 2: pair each kcal unit with the best-ratio kJ unit to its
+            // left. Robust to single-line and interleaved layouts (e.g.
+            // "2368 kJ 758 kJ 569 kcal" where a per-serving kJ sits between).
+            for (ci in kcalIdx) {
+                val kcalV = numberNear(ci) ?: continue
+                if (kcalV <= 0) continue
+                var bestKj: Float? = null
+                var bestErr = Float.MAX_VALUE
+                var bestKi = -1
+                for (ki in kjIdx) {
+                    if (ki >= ci) continue
+                    val kjV = numberNear(ki) ?: continue
+                    if (kjV <= 0) continue
+                    val r = kjV / kcalV
+                    if (r in 2.0..8.0) {
+                        val err = abs(r - 4.184f)
+                        if (err < bestErr) { bestErr = err; bestKj = kjV; bestKi = ki }
                     }
-                    if (numsBetween.isNotEmpty()) {
-                        val kcalV = numsBetween[0].first
-                        if (ki > 0 && (ki - 1) !in used) {
-                            val (v, _, _) = cleanNumber(tokens[ki - 1])
-                            if (v != null && classifyToken(tokens[ki - 1]).first == null && kcalV > 0 && v / kcalV in 2.0..8.0) {
-                                pairs.add(Quadruple(v, kcalV, ki - 1, numsBetween[0].second))
-                            }
-                        }
-                    } else {
-                        val start = maxOf(ki, ci) + 1
-                        val nums = mutableListOf<Pair<Float, Int>>()
-                        var k2 = start
-                        while (k2 < tokens.size && nums.size < 10) {
-                            if (classifyToken(tokens[k2]).first in setOf("kj", "kcal", "fat", "carbohydrate", "protein")) break
-                            val (v, _, _) = cleanNumber(tokens[k2])
-                            if (v != null) nums.add(v to k2)
-                            k2++
-                        }
-                        for (j in 0 until nums.size - 1 step 2) {
-                            val kjV = nums[j].first; val kcalV = nums[j + 1].first
-                            if (kcalV > 0 && kjV / kcalV in 2.0..8.0) {
-                                pairs.add(Quadruple(kjV, kcalV, nums[j].second, nums[j + 1].second))
-                            } else if (kjV > 0 && kcalV > 0 && 0.2 < kjV / kcalV && kjV / kcalV < 0.5) {
-                                // values possibly swapped
-                                pairs.add(Quadruple(kcalV, kjV, nums[j].second, nums[j + 1].second))
-                            }
-                        }
-                        if (pairs.isEmpty() && ki > 0 && (ki - 1) !in used) {
-                            val (v, _, _) = cleanNumber(tokens[ki - 1])
-                            if (v != null && classifyToken(tokens[ki - 1]).first == null) {
-                                pairs.add(Quadruple(v, v / 4.184f, ki - 1, ki))
-                            }
-                        }
+                }
+                if (bestKj != null) pairs.add(Quadruple(bestKj, kcalV, bestKi, ci))
+            }
+
+            // Pattern 3: no explicit unit — "energy <num> <num>" with kJ:kcal ≈ 4.184.
+            if (kjIdx.isEmpty() && kcalIdx.isEmpty()) {
+                for (ei in energyIdx) {
+                    val n1 = numberAfter(ei, 1) ?: continue
+                    val n2 = numberAfter(ei, 2) ?: continue
+                    val r = n1 / n2
+                    when {
+                        r in 2.0..8.0 -> pairs.add(Quadruple(n1, n2, ei, ei))
+                        (n2 / n1) in 2.0..8.0 -> pairs.add(Quadruple(n2, n1, ei, ei))
                     }
-                    break
                 }
             }
 
             return pairs
         }
 
-        val pairs = findHeaderPairs()
+        // Sort by kcal descending so the per-100g value (always the largest)
+        // is considered first; drop reference-intake pairs (kcal ~2000).
+        var pairs = findHeaderPairs()
+            .filter { it.two < 1100f }
+            // The per-100g column always appears first (leftmost) in the token
+            // stream, so sort by the kj-token position rather than by kcal
+            // magnitude (which fails when the serving is larger than 100g).
+            .sortedBy { it.three }
+
+        // Pattern 1c: fallback when no header-based pair survived filtering.
+        // When kj and kcal tokens are close in the token stream, the real
+        // values may be scattered between (or before) them.  Collect all
+        // numbers in the window and pick the pair whose kJ value appears
+        // earliest (leftmost) in the stream — the per-100g column always
+        // comes first; tie-break on the tightest ratio to 4.184.
+        if (pairs.isEmpty()) {
+            for (ki in kjIdx) {
+                for (ci in kcalIdx) {
+                    if (abs(ki - ci) > 12) continue
+                    val lo = maxOf(0, minOf(ki, ci) - 4)
+                    val hi = minOf(tokens.size, maxOf(ki, ci) + 5)
+                    val nums = mutableListOf<Pair<Float, Int>>()
+                    for (k in lo until hi) {
+                        if (k == ki || k == ci) continue
+                        val raw = tokens[k]
+                        // Skip numbers carrying a mass/volume unit (e.g. "330ml",
+                        // "100g") — these are serving sizes, not energy values.
+                        if (raw.any { it.isLetter() && it.lowercaseChar() in setOf('g', 'm', 'l') }) continue
+                        val (v, _, _) = cleanNumber(raw)
+                        if (v != null && v > 0f) nums.add(v to k)
+                    }
+                    var bestPair: Pair<Float, Float>? = null
+                    var bestPos = Int.MAX_VALUE
+                    var bestErr = Float.MAX_VALUE
+                    for (a in nums.indices) {
+                        for (b in a + 1 until nums.size) {
+                            val (va, pa) = nums[a]
+                            val (vb, pb) = nums[b]
+                            val (kjv, kcalv, kjPos) = if (va >= vb) Triple(va, vb, pa) else Triple(vb, va, pb)
+                            val r = kjv / kcalv
+                            if (r !in 2.0..8.0) continue
+                            val err = abs(r - 4.184f)
+                            if (err < 1.0f && (kjPos < bestPos ||
+                                (kjPos == bestPos && err < bestErr))
+                            ) {
+                                bestPos = kjPos
+                                bestErr = err
+                                bestPair = kjv to kcalv
+                            }
+                        }
+                    }
+                    if (bestPair != null) {
+                        val (bj, bcal) = bestPair
+                        pairs = (pairs + Quadruple(bj, bcal, ki, ci)).sortedBy { it.three }
+                    }
+                }
+            }
+        }
         if (pairs.isNotEmpty()) {
             for (pair in pairs) {
                 val (kjV, kcalV, kjI, kcalI) = pair
@@ -404,6 +495,9 @@ class LabelParser @Inject constructor() {
                 if (allKj.isEmpty() && allKcal.isEmpty()) {
                     allKj.add(kjV); allKcal.add(kcalV); used.add(kjI); used.add(kcalI)
                 } else if (allKj.size == 1 && allKcal.size == 1) {
+                    // Skip a duplicate of the per-100g pair (e.g. found by two
+                    // patterns) so it isn't misassigned to the per-serving slot.
+                    if (kjV == allKj[0] && kcalV == allKcal[0]) continue
                     allKj.add(kjV); allKcal.add(kcalV); used.add(kjI); used.add(kcalI)
                 }
             }
@@ -428,6 +522,15 @@ class LabelParser @Inject constructor() {
             for (idx in kjIdx) { tryAttach(idx)?.let { allKj.add(it) } }
             for (idx in kcalIdx) { tryAttach(idx)?.let { allKcal.add(it) } }
         }
+
+        // A value attached to "kcal" that exceeds the plausible per-100g
+        // maximum is really a kJ figure (e.g. "1521 359" with a stray unit).
+        // Move it to the kJ slot; otherwise discard out-of-range readings.
+        if (allKcal.isNotEmpty() && allKcal[0] > 1100f) {
+            allKj.add(0, allKcal.removeAt(0))
+        }
+        if (allKj.isNotEmpty() && allKj[0] > 4200f) allKj.clear()
+        if (allKcal.isNotEmpty() && allKcal[0] > 1100f) allKcal.clear()
 
         var kj100 = allKj.firstOrNull()
         var kcal100 = allKcal.firstOrNull()

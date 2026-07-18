@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -135,6 +136,9 @@ fun LabelScanScreen(onLabelConfirmed: (ParsedNutritionLabel) -> Unit) {
             .fillMaxSize()
             .padding(horizontal = 12.dp, vertical = 16.dp)
     ) {
+        // Single source of truth: the live MAP consensus shown everywhere.
+        val label = consensus.toParsedLabel()
+
         // Top: live energy + serving readouts (per 100 g), mirrors the bottom panel.
         Surface(
             modifier = Modifier
@@ -150,21 +154,33 @@ fun LabelScanScreen(onLabelConfirmed: (ParsedNutritionLabel) -> Unit) {
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                val kcalValue = (consensus.kcal.value as? Float)
+                val kcalValue = label.per100?.kcal
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = kcalValue?.let { "%.0f".format(it) } ?: "—",
-                        style = MaterialTheme.typography.headlineMedium,
-                        color = if (consensus.kcal.confirmed) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.onSurface
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = kcalValue?.let { "%.0f".format(it) } ?: "—",
+                            style = MaterialTheme.typography.headlineMedium,
+                            color = if (consensus.kcal.confirmed) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurface
+                        )
+                        if (consensus.kcalDerived) {
+                            Icon(
+                                Icons.Outlined.AutoAwesome,
+                                contentDescription = "Derived",
+                                tint = MaterialTheme.colorScheme.tertiary,
+                                modifier = Modifier
+                                    .padding(start = 4.dp)
+                                    .size(16.dp)
+                            )
+                        }
+                    }
                     Text(
                         "kcal",
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                val servingValue = (consensus.servingG.value as? Float)
+                val servingValue = label.servingSizeG
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
                         text = servingValue?.let { "%.0f".format(it) } ?: "—",
@@ -200,7 +216,7 @@ fun LabelScanScreen(onLabelConfirmed: (ParsedNutritionLabel) -> Unit) {
                         style = MaterialTheme.typography.titleMedium
                     )
                     Text(
-                        "per 100 g",
+                        "per 100g/ml",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -213,7 +229,7 @@ fun LabelScanScreen(onLabelConfirmed: (ParsedNutritionLabel) -> Unit) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     MacroPieChart(
-                        macros = consensus.toParsedLabel().toMacros(),
+                        macros = label.toMacros(),
                         modifier = Modifier
                             .size(104.dp)
                             .padding(4.dp)
@@ -222,9 +238,9 @@ fun LabelScanScreen(onLabelConfirmed: (ParsedNutritionLabel) -> Unit) {
                         modifier = Modifier.weight(1f),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        FieldRow("Protein", consensus.protein, suffix = "g") { "%.1f".format(it) }
-                        FieldRow("Carbs", consensus.carbs, suffix = "g") { "%.1f".format(it) }
-                        FieldRow("Fat", consensus.fat, suffix = "g") { "%.1f".format(it) }
+                        FieldRow("Protein", label.per100?.protein, consensus.protein.confirmed, consensus.protein.progress, suffix = "g") { "%.1f".format(it) }
+                        FieldRow("Carbs", label.per100?.carbs, consensus.carbs.confirmed, consensus.carbs.progress, suffix = "g") { "%.1f".format(it) }
+                        FieldRow("Fat", label.per100?.fat, consensus.fat.confirmed, consensus.fat.progress, suffix = "g") { "%.1f".format(it) }
                     }
                 }
 
@@ -238,6 +254,17 @@ fun LabelScanScreen(onLabelConfirmed: (ParsedNutritionLabel) -> Unit) {
                     Icon(Icons.Default.Check, contentDescription = null)
                     Text("Use this label")
                 }
+                if (!consensus.isReady) {
+                    Text(
+                        "Refining… values lock once energy + all 3 macros agree",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp),
+                        textAlign = TextAlign.Center
+                    )
+                }
             }
         }
     }
@@ -246,15 +273,15 @@ fun LabelScanScreen(onLabelConfirmed: (ParsedNutritionLabel) -> Unit) {
 @Composable
 private fun FieldRow(
     label: String,
-    field: ConsensusField<*>,
+    value: Float?,
+    confirmed: Boolean,
+    progress: Float,
     suffix: String = "",
     format: (Float) -> String = { it.toString() }
 ) {
-    val display = when (val v = field.value) {
-        is Float -> "${format(v)}${if (suffix.isNotEmpty()) " $suffix" else ""}"
-        is String -> v
-        null -> "—"
-        else -> field.value.toString()
+    val display = when {
+        value != null -> "${format(value)}${if (suffix.isNotEmpty()) " $suffix" else ""}"
+        else -> "—"
     }
 
     Column(modifier = Modifier.fillMaxWidth()) {
@@ -268,9 +295,9 @@ private fun FieldRow(
                 Text(
                     display,
                     style = MaterialTheme.typography.bodyLarge,
-                    color = if (field.confirmed) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+                    color = if (confirmed) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                if (field.confirmed) {
+                if (confirmed) {
                     Icon(
                         Icons.Default.Check,
                         contentDescription = "Confirmed",
@@ -283,12 +310,12 @@ private fun FieldRow(
             }
         }
         LinearProgressIndicator(
-            progress = { field.progress },
+            progress = { progress },
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = 4.dp)
                 .clip(RoundedCornerShape(4.dp)),
-            color = if (field.confirmed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+            color = if (confirmed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
         )
     }
 }

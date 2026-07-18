@@ -32,7 +32,10 @@ class OcrTest {
             "goodness-shakes-chocolate.jpg",
             "roses-lime-cordial.jpg",
             "skipjack-tuna-brine.jpg",
-            "lidl-cooking-oil-spray.jpg"
+            "lidl-cooking-oil-spray.jpg",
+            "mands-cheese-twists.jpg",
+            "pasta.jpg",
+            "lidl-halva.jpg"
         )
 
         for (filename in files) {

@@ -24,12 +24,45 @@ class LabelConsensusTest {
     )
 
     @Test
-    fun `field is not confirmed until seen at least MIN_READS times with a majority`() {
+    fun `all four fields lock together once each has MIN_READS agreeing reads and combo is consistent`() {
         var c = LabelConsensus()
-        repeat(ConsensusField.MIN_READS - 1) { c = c.accept(label(kcal = 200f)) }
+        // Not enough reads yet — should not lock.
+        repeat(ConsensusField.MIN_READS - 1) { c = c.accept(label(kcal = 200f, protein = 15f, carbs = 20f, fat = 5f)) }
         assertFalse(c.kcal.confirmed)
-        c = c.accept(label(kcal = 200f))
+        // On the MIN_READS-th read all four fields reach the threshold and the
+        // combo is Atwater-consistent (15*4 + 20*4 + 5*9 = 185 ≈ 200), so the
+        // whole group locks.
+        c = c.accept(label(kcal = 200f, protein = 15f, carbs = 20f, fat = 5f))
         assertTrue(c.kcal.confirmed)
+        assertTrue(c.protein.confirmed && c.carbs.confirmed && c.fat.confirmed)
+    }
+
+    @Test
+    fun `core four lock together when all observed fields are confident and combo is consistent`() {
+        var c = LabelConsensus()
+        // Macros with partial evidence (1-2 reads, below MIN_READS) block the lock.
+        c = c.accept(label(kcal = 200f, protein = 15f))
+        c = c.accept(label(kcal = 200f, carbs = 20f))
+        assertFalse(c.kcal.confirmed) // protein/carbs/fat not all confident yet
+        // Once all observed fields reach MIN_READS and combo is consistent, everything locks.
+        repeat(ConsensusField.MIN_READS) {
+            c = c.accept(label(kcal = 200f, protein = 15f, carbs = 20f, fat = 5f))
+        }
+        assertTrue(c.kcal.confirmed)
+        assertTrue(c.protein.confirmed && c.carbs.confirmed && c.fat.confirmed)
+    }
+
+    @Test
+    fun `nil macros do not block lock when genuinely absent`() {
+        var c = LabelConsensus()
+        // Consistent scans with no macros — nil fields have readCount 0, so they
+        // don't block the lock.
+        repeat(ConsensusField.MIN_READS) { c = c.accept(label(kcal = 200f)) }
+        assertTrue(c.kcal.confirmed)
+        // Nil macros stay unconfirmed (locked to null).
+        assertFalse(c.protein.confirmed)
+        assertFalse(c.carbs.confirmed)
+        assertFalse(c.fat.confirmed)
     }
 
     @Test

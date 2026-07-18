@@ -193,24 +193,17 @@ class AddViewModel @Inject constructor(
     }
 
     fun onLabelParsed(parsed: ParsedNutritionLabel) {
-        val macros = Macros(
-            kcal = parsed.per100?.kcal ?: parsed.perServing?.kcal ?: 0f,
-            proteinG = parsed.per100?.protein ?: parsed.perServing?.protein ?: 0f,
-            carbsG = parsed.per100?.carbs ?: parsed.perServing?.carbs ?: 0f,
-            fatG = parsed.per100?.fat ?: parsed.perServing?.fat ?: 0f
-        )
-        val food = FoodItem(
-            id = 0,
-            source = com.macrotrack.domain.model.Source.USER,
-            sourceId = null,
-            ean = null,
-            brand = null,
+        val draft = QuickAddDraft(
             name = "Scanned food",
-            defaultPortionG = parsed.servingSizeG,
-            defaultPortionLabel = parsed.servingLabel,
-            macroPer100g = macros
+            portionG = parsed.servingSizeG?.let { "%.1f".format(it) } ?: "",
+            portionLabel = parsed.servingLabel ?: "",
+            kcal = parsed.per100?.kcal?.let { "%.0f".format(it) } ?: "",
+            protein = parsed.per100?.protein?.let { "%.1f".format(it) } ?: "",
+            carbs = parsed.per100?.carbs?.let { "%.1f".format(it) } ?: "",
+            fat = parsed.per100?.fat?.let { "%.1f".format(it) } ?: ""
         )
-        _pendingFood.value = food
+        _quickAddDraft.value = draft
+        _mode.value = AddMode.QUICK_ADD
     }
 
     fun updateQuickAddDraft(draft: QuickAddDraft) {
