@@ -16,13 +16,6 @@ val MacroFatDark       = Color(0xFFE89A7D)
 val BrandPrimaryLight = Color(0xFF3F6B47)
 val BrandPrimaryDark  = Color(0xFF8FBF9A)
 
-// Legacy single-value fallback constants retained for non-dynamic call sites
-// (e.g. MacroPieChart). Prefer the authored Light/Dark pairs above in new code.
-val MacroCalories = MacroCaloriesLight
-val MacroProtein  = MacroProteinLight
-val MacroCarbs    = MacroCarbsLight
-val MacroFat      = MacroFatLight
-
 // ---------------- Dark scheme (sage-leaning) ----------------
 val md_theme_dark_primary = Color(0xFF8FBF9A)
 val md_theme_dark_onPrimary = Color(0xFF003220)
