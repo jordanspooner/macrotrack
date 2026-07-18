@@ -35,7 +35,9 @@ data class MacroValues(
     val kj: Float? = null
 )
 
-class LabelParser @Inject constructor() {
+class LabelParser @Inject constructor(
+    private val lineReconstructor: OcrLineReconstructor = OcrLineReconstructor()
+) {
 
     fun parseStructured(elements: List<OcrElement>): ParsedNutritionLabel {
         if (elements.isEmpty()) return ParsedNutritionLabel(null, null, null, null)
@@ -216,7 +218,8 @@ class LabelParser @Inject constructor() {
     private val LETTER_NUMBERS = mapOf(
         "ia" to 1.0f, "l0" to 1.0f, "z0" to 7.0f, "z" to 7.0f,
         "og" to 0.0f, "o" to 0.0f, "0g" to 0.0f, "0" to 0.0f,
-        "nil" to 0.0f, "trace" to 0.0f, "n/a" to 0.0f, "na" to 0.0f, "none" to 0.0f, "-" to 0.0f
+        "nil" to 0.0f, "trace" to 0.0f, "n/a" to 0.0f, "na" to 0.0f, "none" to 0.0f, "-" to 0.0f,
+        "dg" to 0.0f
     )
 
     private val CONFUSABLE = mapOf('z' to '7', 'o' to '0', 'l' to '1', 'i' to '1', '|' to '1')
@@ -609,114 +612,22 @@ class LabelParser @Inject constructor() {
     }
 
     // ── Stage 1: OCR bounding box → text-line reconstruction ───────
+    // Delegates to [OcrLineReconstructor]: a global-skew, ry-based line
+    // builder that groups a label with its value across any number of
+    // columns regardless of slight image slant.
+
+    /** Reconstruct text lines from OCR bounding boxes. */
+    fun reconstructLines(elements: List<OcrElement>): String =
+        lineReconstructor.reconstructLines(elements)
 
     /**
-     * Reconstruct text lines from OCR bounding boxes.
-     * Port of ocr_to_text.py's [to_text] algorithm.
-     * Geometry-first: walk right/left from seed boxes using edge proximity
-     * and EMA-tracked skew to handle rotated/tightly-packed labels.
+     * Cluster OCR elements into visual rows (delegates to [OcrLineReconstructor]).
+     * The [tolerance] parameter is accepted for API compatibility but the
+     * skew-aware reconstructor derives its own tolerance from the median box
+     * height.
      */
-    fun reconstructLines(elements: List<OcrElement>): String {
-        val n = elements.size
-        if (n == 0) return ""
-
-        val cx = DoubleArray(n) { (elements[it].left + elements[it].right) / 2.0 }
-        val cy = DoubleArray(n) { (elements[it].top + elements[it].bottom) / 2.0 }
-        val used = BooleanArray(n)
-        val medh = elements.map { (it.bottom - it.top).toDouble() }.sorted().let { it[it.size / 2] }
-        val overlapTol = 10.0
-        val yTol = maxOf(25.0, 0.5 * medh)
-
-        fun findNext(cur: Int, direction: String, slope: Double): Int? {
-            var best: Int? = null; var bestGap = Double.MAX_VALUE; var bestYd = Double.MAX_VALUE
-            val cl = elements[cur].left.toDouble(); val cr = elements[cur].right.toDouble()
-            val ccy = cy[cur]; val ccx = cx[cur]
-            for (j in 0 until n) {
-                if (used[j] || j == cur) continue
-                val jl = elements[j].left.toDouble(); val jr = elements[j].right.toDouble()
-                if (direction == "right") {
-                    if (jl < cr - overlapTol) continue
-                    val gap = jl - cr; val expY = ccy + slope * (cx[j] - ccx); val yd = abs(cy[j] - expY)
-                    if (yd > yTol) continue
-                    if (best == null || gap < bestGap || (abs(gap - bestGap) < 1 && yd < bestYd)) {
-                        best = j; bestGap = gap; bestYd = yd
-                    }
-                } else {
-                    if (jr > cl + overlapTol) continue
-                    val gap = cl - jr; val expY = ccy + slope * (cx[j] - ccx); val yd = abs(cy[j] - expY)
-                    if (yd > yTol) continue
-                    if (best == null || gap < bestGap || (abs(gap - bestGap) < 1 && yd < bestYd)) {
-                        best = j; bestGap = gap; bestYd = yd
-                    }
-                }
-            }
-            return best
-        }
-
-        val lines = mutableListOf<List<Int>>()
-        while (used.any { !it }) {
-            val start = (0 until n).filter { !used[it] }.minByOrNull { cy[it] }!!
-            used[start] = true
-            val line = mutableListOf(start)
-            var slope = 0.0; var nslopes = 0
-
-            var cur = start
-            while (true) {
-                val nxt = findNext(cur, "right", slope) ?: break
-                used[nxt] = true
-                if (abs(cx[nxt] - cx[cur]) > 1) {
-                    val s = (cy[nxt] - cy[cur]) / (cx[nxt] - cx[cur])
-                    slope = if (nslopes == 0) s else 0.7 * slope + 0.3 * s
-                    nslopes++
-                }
-                line.add(nxt); cur = nxt
-            }
-            cur = start
-            while (true) {
-                val nxt = findNext(cur, "left", slope) ?: break
-                used[nxt] = true
-                if (abs(cx[nxt] - cx[cur]) > 1) {
-                    val s = (cy[nxt] - cy[cur]) / (cx[nxt] - cx[cur])
-                    slope = if (nslopes == 0) s else 0.7 * slope + 0.3 * s
-                    nslopes++
-                }
-                line.add(0, nxt); cur = nxt
-            }
-            lines.add(line)
-        }
-
-        lines.sortBy { ln -> ln.minOf { cy[it] } }
-        return lines.joinToString("\n") { ln ->
-            ln.sortedBy { cx[it] }.joinToString(" ") { elements[it].text }
-        }
-    }
-
-    // ── Legacy helpers (kept for backward compatibility) ────────────
-
-    fun clusterIntoRows(elements: List<OcrElement>, tolerance: Int = 15): List<OcrRow> {
-        if (elements.isEmpty()) return emptyList()
-        val sorted = elements.sortedBy { it.centerY }
-        val rows = mutableListOf<MutableList<OcrElement>>()
-        var currentRow = mutableListOf(sorted[0])
-        for (i in 1 until sorted.size) {
-            val elem = sorted[i]
-            val rowAvgY = currentRow.map { it.centerY }.average()
-            val rowAvgX = currentRow.map { it.centerX }.average()
-            val xDist = abs(elem.centerX - rowAvgX.toInt())
-            val effectiveTolerance = minOf((tolerance + xDist * 0.02).toInt(), tolerance * 3)
-            if (abs(elem.centerY - rowAvgY.toInt()) <= effectiveTolerance) {
-                currentRow.add(elem)
-            } else {
-                rows.add(currentRow)
-                currentRow = mutableListOf(elem)
-            }
-        }
-        rows.add(currentRow)
-        return rows.map { row ->
-            val sortedRow = row.sortedBy { it.left }
-            OcrRow(sortedRow, sortedRow.map { it.centerY }.average().toInt())
-        }
-    }
+    fun clusterIntoRows(elements: List<OcrElement>, tolerance: Int = 15): List<OcrRow> =
+        lineReconstructor.toRows(elements)
 
     private data class Quadruple<A, B, C, D>(val one: A, val two: B, val three: C, val four: D)
 }

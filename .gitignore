@@ -15,7 +15,6 @@ scripts/
 
 # Ad-hoc test sources
 app/src/test/java/com/macrotrack/domain/parser/LabelParserOcrAnalysisTest.kt
-app/src/test/java/com/macrotrack/domain/parser/RealOcrElements.kt
 
 # Binary files (test images, etc.)
 *.jpg
