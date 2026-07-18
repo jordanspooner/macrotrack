@@ -1,19 +1,28 @@
 package com.macrotrack.ui.log
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.macrotrack.ui.components.*
+import com.macrotrack.ui.settings.CalendarModal
 import com.macrotrack.domain.model.Section
+import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 
@@ -27,6 +36,7 @@ fun LogScreen(
     val uiState by viewModel.uiState.collectAsState()
     val reseedMessage by viewModel.reseedMessage.collectAsState()
     var showDevMenu by remember { mutableStateOf(false) }
+    var showCalendar by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(reseedMessage) {
@@ -72,24 +82,45 @@ fun LogScreen(
             )
         },
         bottomBar = {
-            if (uiState.selectionMode is SelectionMode.Selecting) {
-                val selectedIds = (uiState.selectionMode as SelectionMode.Selecting).selectedIds
-                SelectionBottomBar(
-                    selectedCount = selectedIds.size,
-                    onCopyClick = { /* TODO */ },
-                    onMoveClick = { /* TODO */ },
-                    onDeleteClick = { /* TODO */ },
-                    onCloseClick = { viewModel.exitSelectionMode() }
-                )
-            } else {
-                val dateIso = uiState.selectedDate.format(DateTimeFormatter.ISO_LOCAL_DATE)
-                val defaultSectionId = defaultSectionId(uiState.sections.map { it.section })
-                AddFoodBottomBar(
-                    onSearchClick = { onNavigateToAddFood(defaultSectionId, dateIso) },
-                    onLabelScanClick = { onNavigateToAddFood(defaultSectionId, dateIso) },
-                    onBarcodeScanClick = { onNavigateToAddFood(defaultSectionId, dateIso) },
-                    onQuickAddClick = { onNavigateToAddFood(defaultSectionId, dateIso) }
-                )
+            when (val selectionMode = uiState.selectionMode) {
+                is SelectionMode.Selecting -> {
+                    AnimatedVisibility(
+                        visible = true,
+                        enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+                        exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
+                    ) {
+                        SelectionBottomBar(
+                            selectedCount = selectionMode.selectedIds.size,
+                            onCopyClick = { viewModel.copySelectedEntries() },
+                            onMoveClick = { viewModel.moveSelectedEntries() },
+                            onDeleteClick = { viewModel.deleteSelectedEntries() },
+                            onCloseClick = { viewModel.exitSelectionMode() }
+                        )
+                    }
+                }
+                is SelectionMode.ChoosingDestination -> {
+                    AnimatedVisibility(
+                        visible = true,
+                        enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+                        exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
+                    ) {
+                        DestinationPickerBar(
+                            selectedDate = uiState.selectedDate,
+                            onSelectDestination = { date -> viewModel.confirmCopyMove(date) },
+                            onCancel = { viewModel.cancelChoosingDestination() },
+                        )
+                    }
+                }
+                SelectionMode.Off -> {
+                    val dateIso = uiState.selectedDate.format(DateTimeFormatter.ISO_LOCAL_DATE)
+                    val defaultSectionId = defaultSectionId(uiState.sections.map { it.section })
+                    AddFoodBottomBar(
+                        onSearchClick = { onNavigateToAddFood(defaultSectionId, dateIso) },
+                        onLabelScanClick = { onNavigateToAddFood(defaultSectionId, dateIso) },
+                        onBarcodeScanClick = { onNavigateToAddFood(defaultSectionId, dateIso) },
+                        onQuickAddClick = { onNavigateToAddFood(defaultSectionId, dateIso) }
+                    )
+                }
             }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
@@ -107,7 +138,8 @@ fun LogScreen(
             item {
                 WeekDateStrip(
                     weekDays = uiState.weekDates,
-                    onDateSelected = { day -> viewModel.onDateSelected(day.date) }
+                    onDateSelected = { day -> viewModel.onDateSelected(day.date) },
+                    onOpenCalendar = { showCalendar = true }
                 )
             }
 
@@ -167,6 +199,17 @@ fun LogScreen(
             item { Spacer(modifier = Modifier.height(16.dp)) }
         }
     }
+
+    if (showCalendar) {
+        CalendarModal(
+            selectedDate = uiState.selectedDate,
+            onDateSelected = { date ->
+                viewModel.onDateSelected(date)
+                showCalendar = false
+            },
+            onDismiss = { showCalendar = false },
+        )
+    }
 }
 
 /**
@@ -179,4 +222,42 @@ private fun defaultSectionId(sections: List<Section>): Long {
     val sorted = sections.sortedBy { it.timeOfDay }
     val past = sorted.filter { !it.timeOfDay.isAfter(now) }
     return (past.lastOrNull() ?: sorted.last()).id
+}
+
+@Composable
+private fun DestinationPickerBar(
+    selectedDate: LocalDate,
+    onSelectDestination: (LocalDate) -> Unit,
+    onCancel: () -> Unit,
+) {
+    BottomAppBar(
+        containerColor = MaterialTheme.colorScheme.primaryContainer,
+        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onCancel) {
+                    Icon(Icons.Default.Close, "Cancel")
+                }
+                Text("Copy/Move to:", style = MaterialTheme.typography.titleMedium)
+            }
+            Row {
+                val yesterday = LocalDate.now().minusDays(1)
+                val today = LocalDate.now()
+                val tomorrow = LocalDate.now().plusDays(1)
+                TextButton(onClick = { onSelectDestination(yesterday) }) { Text("Yesterday") }
+                TextButton(onClick = { onSelectDestination(today) }) { Text("Today") }
+                TextButton(onClick = { onSelectDestination(tomorrow) }) { Text("Tomorrow") }
+                if (selectedDate != yesterday && selectedDate != today && selectedDate != tomorrow) {
+                    TextButton(onClick = { onSelectDestination(selectedDate) }) {
+                        Text(selectedDate.format(DateTimeFormatter.ofPattern("MMM d")))
+                    }
+                }
+            }
+        }
+    }
 }

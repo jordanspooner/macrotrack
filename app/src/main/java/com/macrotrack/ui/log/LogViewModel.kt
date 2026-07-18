@@ -158,31 +158,46 @@ class LogViewModel @Inject constructor(
         }
     }
 
-    fun copySelectedEntries(targetDate: LocalDate, targetSectionId: Long?) {
-        val selectedIds = (_selectionMode.value as? SelectionMode.Selecting)?.selectedIds ?: return
-        viewModelScope.launch {
-            // Need to get the actual entries to copy.
-            // In a full implementation we'd fetch them from the repo.
-            // For now, this is a placeholder to consume the UseCase and suppress warnings.
-            // copyLogEntriesUseCase(entriesToCopy, targetDate, targetSectionId)
-        }
-        exitSelectionMode()
+    private fun selectedEntries(): List<LogEntry> {
+        val ids = (_selectionMode.value as? SelectionMode.Selecting)?.selectedIds ?: return emptyList()
+        return uiState.value.sections.flatMap { it.entries }.filter { it.id in ids }
     }
 
-    fun moveSelectedEntries(targetDate: LocalDate, targetSectionId: Long?) {
-        val selectedIds = (_selectionMode.value as? SelectionMode.Selecting)?.selectedIds ?: return
-        viewModelScope.launch {
-            // moveLogEntriesUseCase(entriesToMove, targetDate, targetSectionId)
-        }
-        exitSelectionMode()
+    fun copySelectedEntries() {
+        val ids = (_selectionMode.value as? SelectionMode.Selecting)?.selectedIds ?: return
+        _selectionMode.value = SelectionMode.ChoosingDestination(ids, Action.Copy)
+    }
+
+    fun moveSelectedEntries() {
+        val ids = (_selectionMode.value as? SelectionMode.Selecting)?.selectedIds ?: return
+        _selectionMode.value = SelectionMode.ChoosingDestination(ids, Action.Move)
     }
 
     fun deleteSelectedEntries() {
-        val selectedIds = (_selectionMode.value as? SelectionMode.Selecting)?.selectedIds ?: return
+        val entries = selectedEntries()
+        if (entries.isEmpty()) return
         viewModelScope.launch {
-            // deleteLogEntriesUseCase(entriesToDelete)
+            deleteLogEntriesUseCase(entries)
+            exitSelectionMode()
         }
-        exitSelectionMode()
+    }
+
+    fun confirmCopyMove(targetDate: LocalDate) {
+        val mode = _selectionMode.value as? SelectionMode.ChoosingDestination ?: return
+        val entries = uiState.value.sections.flatMap { it.entries }.filter { it.id in mode.selectedIds }
+        if (entries.isEmpty()) return
+        viewModelScope.launch {
+            when (mode.action) {
+                Action.Copy -> copyLogEntriesUseCase(entries, targetDate)
+                Action.Move -> moveLogEntriesUseCase(entries, targetDate)
+            }
+            _selectionMode.value = SelectionMode.Off
+        }
+    }
+
+    fun cancelChoosingDestination() {
+        val mode = _selectionMode.value as? SelectionMode.ChoosingDestination ?: return
+        _selectionMode.value = SelectionMode.Selecting(mode.selectedIds)
     }
 
     private fun buildWeekDates(currentDate: LocalDate): List<WeekDay> {

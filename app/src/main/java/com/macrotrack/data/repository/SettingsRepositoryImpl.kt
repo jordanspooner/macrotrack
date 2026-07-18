@@ -30,4 +30,28 @@ class SettingsRepositoryImpl @Inject constructor(
             prefs[SettingsKeys.KCAL_GOAL] = goals.kcal
         }
     }
+
+    override fun getSectionGoalsEnabled(): Flow<Boolean> {
+        return dataStore.data.map { prefs ->
+            prefs[SettingsKeys.SECTION_GOALS_ENABLED] ?: false
+        }
+    }
+
+    override suspend fun setSectionGoalsEnabled(enabled: Boolean) {
+        dataStore.edit { prefs ->
+            prefs[SettingsKeys.SECTION_GOALS_ENABLED] = enabled
+        }
+    }
+
+    override fun getSectionGoalDistribution(): Flow<String?> {
+        return dataStore.data.map { prefs ->
+            prefs[SettingsKeys.SECTION_GOAL_DISTRIBUTION]
+        }
+    }
+
+    override suspend fun setSectionGoalDistribution(json: String) {
+        dataStore.edit { prefs ->
+            prefs[SettingsKeys.SECTION_GOAL_DISTRIBUTION] = json
+        }
+    }
 }

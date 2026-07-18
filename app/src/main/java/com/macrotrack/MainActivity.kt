@@ -12,6 +12,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.macrotrack.ui.add.AddScreen
 import com.macrotrack.ui.log.LogScreen
+import com.macrotrack.ui.settings.SettingsScreen
 import com.macrotrack.ui.theme.MacroTrackTheme
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -32,10 +33,15 @@ class MainActivity : ComponentActivity() {
                     ) {
                         composable("log") {
                             LogScreen(
-                                onNavigateToSettings = { /* TODO: Phase 5 Settings */ },
+                                onNavigateToSettings = { navController.navigate("settings") },
                                 onNavigateToAddFood = { sectionId, date ->
                                     navController.navigate("add?date=$date&sectionId=$sectionId")
                                 }
+                            )
+                        }
+                        composable("settings") {
+                            SettingsScreen(
+                                onBack = { navController.popBackStack() }
                             )
                         }
                         composable(

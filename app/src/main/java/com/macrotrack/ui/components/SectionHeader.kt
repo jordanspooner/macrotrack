@@ -1,5 +1,6 @@
 package com.macrotrack.ui.components
 
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
@@ -27,6 +28,7 @@ fun SectionHeader(
         modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onToggleExpand)
+            .animateContentSize()
             .padding(horizontal = 16.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
