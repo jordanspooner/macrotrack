@@ -1,15 +1,19 @@
 package com.macrotrack.ui.log
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.shape.CircleShape
@@ -36,6 +40,7 @@ import com.macrotrack.ui.components.*
 import com.macrotrack.ui.settings.CalendarModal
 import com.macrotrack.ui.theme.MacroTrackPillShape
 import com.macrotrack.ui.theme.MacroTrackShapes
+import com.macrotrack.ui.theme.MotionTokens
 import com.macrotrack.ui.theme.Spacing
 import com.macrotrack.ui.theme.brandOnPrimary
 import com.macrotrack.ui.theme.brandPrimary
@@ -58,6 +63,7 @@ fun LogScreen(
     var showCalendar by remember { mutableStateOf(false) }
     var showAddMenu by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    var isForward by remember { mutableStateOf(true) }
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(reseedMessage) {
@@ -151,124 +157,143 @@ fun LogScreen(
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(paddingValues),
+                    .padding(paddingValues)
+                    .horizontalSwipeNav(
+                        onSwipeLeft = {
+                            isForward = true
+                            viewModel.onDateSelected(uiState.selectedDate.plusDays(1))
+                        },
+                        onSwipeRight = {
+                            isForward = false
+                            viewModel.onDateSelected(uiState.selectedDate.minusDays(1))
+                        },
+                    ),
                 contentPadding = PaddingValues(bottom = 88.dp)
             ) {
                 item {
                     WeekDateStrip(
                         weekDays = uiState.weekDates,
                         onDateSelected = { day -> viewModel.onDateSelected(day.date) },
-                        onOpenCalendar = { showCalendar = true }
+                        onOpenCalendar = { showCalendar = true },
+                        onSwipeLeft = { viewModel.onDateSelected(uiState.selectedDate.plusWeeks(1)) },
+                        onSwipeRight = { viewModel.onDateSelected(uiState.selectedDate.minusWeeks(1)) },
                     )
                 }
 
                 item {
-                    MacroSummaryCard(summary = uiState.dailySummary)
-                }
+                    AnimatedContent(
+                        targetState = uiState.selectedDate,
+                        transitionSpec = {
+                            if (isForward) {
+                                (slideInHorizontally(initialOffsetX = { it }) + fadeIn(tween(MotionTokens.medium)))
+                                    .togetherWith(slideOutHorizontally(targetOffsetX = { -it }) + fadeOut(tween(MotionTokens.medium)))
+                            } else {
+                                (slideInHorizontally(initialOffsetX = { -it }) + fadeIn(tween(MotionTokens.medium)))
+                                    .togetherWith(slideOutHorizontally(targetOffsetX = { it }) + fadeOut(tween(MotionTokens.medium)))
+                            }
+                        },
+                        contentKey = { it },
+                    ) {
+                        Column {
+                            MacroSummaryCard(summary = uiState.dailySummary)
 
-                val isEmpty =
-                    uiState.sections.isNotEmpty() && uiState.sections.all { it.entries.isEmpty() }
+                            val isEmpty =
+                                uiState.sections.isNotEmpty() && uiState.sections.all { it.entries.isEmpty() }
 
-                if (isEmpty) {
-                    item {
-                        Box(
-                            modifier = Modifier
-                                .fillParentMaxSize()
-                                .padding(Spacing.lg),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Surface(
-                                color = restingSurfaceColor(),
-                                shape = MacroTrackShapes.large,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.Center,
-                                    modifier = Modifier.padding(Spacing.xxl)
+                            if (isEmpty) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(Spacing.lg),
+                                    contentAlignment = Alignment.Center
                                 ) {
                                     Surface(
                                         color = restingSurfaceColor(),
-                                        shape = CircleShape,
-                                        modifier = Modifier.size(72.dp)
+                                        shape = MacroTrackShapes.large,
+                                        modifier = Modifier.fillMaxWidth()
                                     ) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Icon(
-                                                Icons.Default.RestaurantMenu,
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                modifier = Modifier.size(32.dp)
+                                        Column(
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            verticalArrangement = Arrangement.Center,
+                                            modifier = Modifier.padding(Spacing.xxl)
+                                        ) {
+                                            Surface(
+                                                color = restingSurfaceColor(),
+                                                shape = CircleShape,
+                                                modifier = Modifier.size(72.dp)
+                                            ) {
+                                                Box(contentAlignment = Alignment.Center) {
+                                                    Icon(
+                                                        Icons.Default.RestaurantMenu,
+                                                        contentDescription = null,
+                                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        modifier = Modifier.size(32.dp)
+                                                    )
+                                                }
+                                            }
+                                            Spacer(modifier = Modifier.height(Spacing.md))
+                                            Text(
+                                                text = "Nothing logged for this day",
+                                                style = MaterialTheme.typography.titleMedium,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            Spacer(modifier = Modifier.height(Spacing.xs))
+                                            Text(
+                                                text = "Tap the + button below to add a meal",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
                                         }
                                     }
-                                    Spacer(modifier = Modifier.height(Spacing.md))
-                                    Text(
-                                        text = "Nothing logged for this day",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Spacer(modifier = Modifier.height(Spacing.xs))
-                                    Text(
-                                        text = "Tap the + button below to add a meal",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    uiState.sections.forEach { sectionWithEntries ->
-                        item {
-                            SectionHeader(
-                                name = sectionWithEntries.section.name,
-                                totalMacros = sectionWithEntries.totalMacros,
-                                isExpanded = sectionWithEntries.isExpanded,
-                                onToggleExpand = { viewModel.toggleSectionExpanded(sectionWithEntries.section.id) }
-                            )
-                        }
-
-                        if (sectionWithEntries.isExpanded) {
-                            if (sectionWithEntries.entries.isEmpty()) {
-                                item {
-                                    val sectionId = sectionWithEntries.section.id
-                                    val dateIso = uiState.selectedDate.format(DateTimeFormatter.ISO_LOCAL_DATE)
-                                    OutlinedButton(
-                                        onClick = { onNavigateToAddFood(sectionId, dateIso, "search") },
-                                        shape = MacroTrackPillShape,
-                                        modifier = Modifier
-                                            .padding(horizontal = Spacing.xxl, vertical = Spacing.sm),
-                                    ) {
-                                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                                        Spacer(Modifier.width(Spacing.xs))
-                                        Text("Add food")
-                                    }
                                 }
                             } else {
-                                items(
-                                    items = sectionWithEntries.entries,
-                                    key = { it.id }
-                                ) { entry ->
-                                    val isSelected = when (val mode = uiState.selectionMode) {
-                                        is SelectionMode.Selecting -> mode.selectedIds.contains(entry.id)
-                                        is SelectionMode.ChoosingDestination -> mode.selectedIds.contains(entry.id)
-                                        SelectionMode.Off -> false
-                                    }
-
-                                    FoodItemCard(
-                                        entry = entry,
-                                        isSelected = isSelected,
-                                        onClick = {
-                                            if (uiState.selectionMode != SelectionMode.Off) {
-                                                viewModel.toggleSelectionMode(entry.id)
-                                            } else {
-                                                onEditEntry(entry.id, uiState.selectedDate)
-                                            }
-                                        },
-                                        onLongClick = {
-                                            viewModel.toggleSelectionMode(entry.id)
-                                        }
+                                uiState.sections.forEach { sectionWithEntries ->
+                                    SectionHeader(
+                                        name = sectionWithEntries.section.name,
+                                        totalMacros = sectionWithEntries.totalMacros,
+                                        isExpanded = sectionWithEntries.isExpanded,
+                                        onToggleExpand = { viewModel.toggleSectionExpanded(sectionWithEntries.section.id) }
                                     )
+
+                                    if (sectionWithEntries.isExpanded) {
+                                        if (sectionWithEntries.entries.isEmpty()) {
+                                            val sectionId = sectionWithEntries.section.id
+                                            val dateIso = uiState.selectedDate.format(DateTimeFormatter.ISO_LOCAL_DATE)
+                                            OutlinedButton(
+                                                onClick = { onNavigateToAddFood(sectionId, dateIso, "search") },
+                                                shape = MacroTrackPillShape,
+                                                modifier = Modifier
+                                                    .padding(horizontal = Spacing.xxl, vertical = Spacing.sm),
+                                            ) {
+                                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                                                Spacer(Modifier.width(Spacing.xs))
+                                                Text("Add food")
+                                            }
+                                        } else {
+                                            sectionWithEntries.entries.forEach { entry ->
+                                                val isSelected = when (val mode = uiState.selectionMode) {
+                                                    is SelectionMode.Selecting -> mode.selectedIds.contains(entry.id)
+                                                    is SelectionMode.ChoosingDestination -> mode.selectedIds.contains(entry.id)
+                                                    SelectionMode.Off -> false
+                                                }
+
+                                                FoodItemCard(
+                                                    entry = entry,
+                                                    isSelected = isSelected,
+                                                    onClick = {
+                                                        if (uiState.selectionMode != SelectionMode.Off) {
+                                                            viewModel.toggleSelectionMode(entry.id)
+                                                        } else {
+                                                            onEditEntry(entry.id, uiState.selectedDate)
+                                                        }
+                                                    },
+                                                    onLongClick = {
+                                                        viewModel.toggleSelectionMode(entry.id)
+                                                    }
+                                                )
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
