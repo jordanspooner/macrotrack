@@ -63,13 +63,23 @@ fun AddScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
-                        Text(relDate, style = MaterialTheme.typography.titleMedium)
+                    val pending = uiState.pendingFood
+                    if (pending != null) {
                         Text(
-                            sectionName,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            pending.name,
+                            style = MaterialTheme.typography.titleMedium,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                         )
+                    } else {
+                        Column {
+                            Text(relDate, style = MaterialTheme.typography.titleMedium)
+                            Text(
+                                sectionName,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 },
                 navigationIcon = {
@@ -116,7 +126,10 @@ fun AddScreen(
                     val selected = selectedTab == index
                     Tab(
                         selected = selected,
-                        onClick = { viewModel.setMode(mode) },
+                        onClick = {
+                            if (uiState.pendingFood != null) viewModel.backFromPortion()
+                            viewModel.setMode(mode)
+                        },
                         text = {
                             Text(
                                 mode.label,
