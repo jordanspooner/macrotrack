@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.RestaurantMenu
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
@@ -109,6 +110,8 @@ fun LogScreen(
                     ) {
                         DestinationPickerBar(
                             selectedDate = uiState.selectedDate,
+                            action = selectionMode.action,
+                            selectedCount = selectionMode.selectedIds.size,
                             onSelectDestination = { date -> viewModel.confirmCopyMove(date) },
                             onCancel = { viewModel.cancelChoosingDestination() },
                         )
@@ -416,37 +419,112 @@ private fun defaultSectionId(sections: List<Section>): Long {
 @Composable
 private fun DestinationPickerBar(
     selectedDate: LocalDate,
+    action: Action,
+    selectedCount: Int,
     onSelectDestination: (LocalDate) -> Unit,
     onCancel: () -> Unit,
 ) {
-    BottomAppBar(
-        containerColor = MaterialTheme.colorScheme.primaryContainer,
-        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+    var showCalendar by remember { mutableStateOf(false) }
+    val today = LocalDate.now()
+    val yesterday = today.minusDays(1)
+    val tomorrow = today.plusDays(1)
+    val targetDates = listOf(yesterday, today, tomorrow)
+    var pickedDate by remember { mutableStateOf<LocalDate?>(null) }
+
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shadowElevation = 8.dp,
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.sm),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Spacing.lg, vertical = Spacing.md),
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onCancel) {
-                    Icon(Icons.Default.Close, "Cancel")
-                }
-                Text("Copy/Move to:", style = MaterialTheme.typography.titleMedium)
-            }
-            Row {
-                val yesterday = LocalDate.now().minusDays(1)
-                val today = LocalDate.now()
-                val tomorrow = LocalDate.now().plusDays(1)
-                TextButton(onClick = { onSelectDestination(yesterday) }) { Text("Yesterday") }
-                TextButton(onClick = { onSelectDestination(today) }) { Text("Today") }
-                TextButton(onClick = { onSelectDestination(tomorrow) }) { Text("Tomorrow") }
-                if (selectedDate != yesterday && selectedDate != today && selectedDate != tomorrow) {
-                    TextButton(onClick = { onSelectDestination(selectedDate) }) {
-                        Text(selectedDate.format(DateTimeFormatter.ofPattern("MMM d")))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onCancel) {
+                        Icon(Icons.Default.Close, contentDescription = "Cancel")
                     }
+                    Text(
+                        text = if (action is Action.Copy) "Copy $selectedCount to" else "Move $selectedCount to",
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                    )
                 }
+                IconButton(onClick = { showCalendar = true }) {
+                    Icon(Icons.Default.CalendarMonth, contentDescription = "Pick a date")
+                }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            ) {
+                targetDates.forEach { date ->
+                    val label = when (date) {
+                        yesterday -> "Yesterday"
+                        today -> "Today"
+                        tomorrow -> "Tomorrow"
+                        else -> date.format(DateTimeFormatter.ofPattern("MMM d"))
+                    }
+                    val isSelected = pickedDate == date
+                    val isEnabled = !(action is Action.Move && date == selectedDate)
+                    FilterChip(
+                        selected = isSelected,
+                        onClick = { if (isEnabled) pickedDate = date },
+                        enabled = isEnabled,
+                        label = { Text(label) },
+                        shape = MacroTrackPillShape,
+                        colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = brandPrimary(),
+                            selectedLabelColor = brandOnPrimary(),
+                        ),
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+            val destination = pickedDate
+            val canConfirm = destination != null
+            val confirmLabel = if (destination != null) {
+                val dateLabel = when (destination) {
+                    yesterday -> "yesterday"
+                    today -> "today"
+                    tomorrow -> "tomorrow"
+                    else -> destination.format(DateTimeFormatter.ofPattern("EEE, MMM d"))
+                }
+                val verb = if (action is Action.Copy) "Copy" else "Move"
+                "$verb $selectedCount → $dateLabel"
+            } else {
+                val verb = if (action is Action.Copy) "Copy" else "Move"
+                "$verb $selectedCount"
+            }
+            androidx.compose.material3.Button(
+                onClick = { destination?.let { onSelectDestination(it) } },
+                enabled = canConfirm,
+                shape = MacroTrackPillShape,
+                colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                    containerColor = brandPrimary(),
+                    contentColor = brandOnPrimary(),
+                ),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(confirmLabel)
             }
         }
+    }
+
+    if (showCalendar) {
+        CalendarModal(
+            selectedDate = selectedDate,
+            onDateSelected = { date ->
+                pickedDate = date
+                showCalendar = false
+            },
+            onDismiss = { showCalendar = false },
+        )
     }
 }
