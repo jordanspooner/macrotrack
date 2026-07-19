@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.DocumentScanner
@@ -19,6 +20,9 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.RestaurantMenu
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -30,6 +34,12 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.macrotrack.ui.components.*
 import com.macrotrack.ui.settings.CalendarModal
+import com.macrotrack.ui.theme.MacroTrackPillShape
+import com.macrotrack.ui.theme.MacroTrackShapes
+import com.macrotrack.ui.theme.Spacing
+import com.macrotrack.ui.theme.brandOnPrimary
+import com.macrotrack.ui.theme.brandPrimary
+import com.macrotrack.ui.theme.restingSurfaceColor
 import com.macrotrack.domain.model.Section
 import java.time.LocalDate
 import java.time.LocalTime
@@ -40,7 +50,8 @@ import java.time.format.DateTimeFormatter
 fun LogScreen(
     viewModel: LogViewModel = hiltViewModel(),
     onNavigateToSettings: () -> Unit,
-    onNavigateToAddFood: (sectionId: Long, date: String, mode: String) -> Unit
+    onNavigateToAddFood: (sectionId: Long, date: String, mode: String) -> Unit,
+    onEditEntry: (entryId: Long, date: LocalDate) -> Unit,
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val reseedMessage by viewModel.reseedMessage.collectAsState()
@@ -99,6 +110,8 @@ fun LogScreen(
                     ) {
                         DestinationPickerBar(
                             selectedDate = uiState.selectedDate,
+                            action = selectionMode.action,
+                            selectedCount = selectionMode.selectedIds.size,
                             onSelectDestination = { date -> viewModel.confirmCopyMove(date) },
                             onCancel = { viewModel.cancelChoosingDestination() },
                         )
@@ -116,8 +129,8 @@ fun LogScreen(
             ) {
                 FloatingActionButton(
                     onClick = { showAddMenu = true },
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    containerColor = brandPrimary(),
+                    contentColor = brandOnPrimary()
                 ) {
                     Icon(Icons.Default.Add, contentDescription = "Add food")
                 }
@@ -138,7 +151,8 @@ fun LogScreen(
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(paddingValues)
+                    .padding(paddingValues),
+                contentPadding = PaddingValues(bottom = 88.dp)
             ) {
                 item {
                     WeekDateStrip(
@@ -158,40 +172,48 @@ fun LogScreen(
                 if (isEmpty) {
                     item {
                         Box(
-                            modifier = Modifier.fillParentMaxSize(),
+                            modifier = Modifier
+                                .fillParentMaxSize()
+                                .padding(Spacing.lg),
                             contentAlignment = Alignment.Center
                         ) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center
+                            Surface(
+                                color = restingSurfaceColor(),
+                                shape = MacroTrackShapes.large,
+                                modifier = Modifier.fillMaxWidth()
                             ) {
-                                Spacer(modifier = Modifier.weight(1f))
-                                Surface(
-                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f),
-                                    shape = MaterialTheme.shapes.large,
-                                    modifier = Modifier.size(64.dp)
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center,
+                                    modifier = Modifier.padding(Spacing.xxl)
                                 ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(
-                                            Icons.Default.RestaurantMenu,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.onPrimaryContainer
-                                        )
+                                    Surface(
+                                        color = restingSurfaceColor(),
+                                        shape = CircleShape,
+                                        modifier = Modifier.size(72.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                Icons.Default.RestaurantMenu,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.size(32.dp)
+                                            )
+                                        }
                                     }
+                                    Spacer(modifier = Modifier.height(Spacing.md))
+                                    Text(
+                                        text = "Nothing logged for this day",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Spacer(modifier = Modifier.height(Spacing.xs))
+                                    Text(
+                                        text = "Tap the + button below to add a meal",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
                                 }
-                                Spacer(modifier = Modifier.height(16.dp))
-                                Text(
-                                    text = "Nothing logged for this day",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "Tap the + button below to add a meal",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Spacer(modifier = Modifier.weight(1f))
                             }
                         }
                     }
@@ -209,12 +231,18 @@ fun LogScreen(
                         if (sectionWithEntries.isExpanded) {
                             if (sectionWithEntries.entries.isEmpty()) {
                                 item {
-                                    Text(
-                                        text = "No items logged",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.padding(horizontal = 32.dp, vertical = 8.dp)
-                                    )
+                                    val sectionId = sectionWithEntries.section.id
+                                    val dateIso = uiState.selectedDate.format(DateTimeFormatter.ISO_LOCAL_DATE)
+                                    OutlinedButton(
+                                        onClick = { onNavigateToAddFood(sectionId, dateIso, "search") },
+                                        shape = MacroTrackPillShape,
+                                        modifier = Modifier
+                                            .padding(horizontal = Spacing.xxl, vertical = Spacing.sm),
+                                    ) {
+                                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                                        Spacer(Modifier.width(Spacing.xs))
+                                        Text("Add food")
+                                    }
                                 }
                             } else {
                                 items(
@@ -233,6 +261,8 @@ fun LogScreen(
                                         onClick = {
                                             if (uiState.selectionMode != SelectionMode.Off) {
                                                 viewModel.toggleSelectionMode(entry.id)
+                                            } else {
+                                                onEditEntry(entry.id, uiState.selectedDate)
                                             }
                                         },
                                         onLongClick = {
@@ -245,8 +275,6 @@ fun LogScreen(
                     }
                 }
 
-                // Add a spacer at the bottom
-                item { Spacer(modifier = Modifier.height(16.dp)) }
             }
         }
     }
@@ -268,11 +296,11 @@ fun LogScreen(
             uiState.sections.firstOrNull { it.section.id == defaultId }?.section?.name ?: "today"
         val dateIso = uiState.selectedDate.format(DateTimeFormatter.ISO_LOCAL_DATE)
         ModalBottomSheet(onDismissRequest = { showAddMenu = false }) {
-            Column(Modifier.padding(bottom = 24.dp)) {
+            Column(Modifier.padding(bottom = Spacing.xl)) {
                 Text(
                     "Add food to $defaultName",
                     style = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
+                    modifier = Modifier.padding(horizontal = Spacing.xl, vertical = Spacing.md),
                 )
                 AddMenuOption(
                     icon = Icons.Default.Search,
@@ -343,7 +371,7 @@ private fun AddMenuOption(
             .fillMaxWidth()
             .height(72.dp)
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = Spacing.lg),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Surface(
@@ -391,37 +419,112 @@ private fun defaultSectionId(sections: List<Section>): Long {
 @Composable
 private fun DestinationPickerBar(
     selectedDate: LocalDate,
+    action: Action,
+    selectedCount: Int,
     onSelectDestination: (LocalDate) -> Unit,
     onCancel: () -> Unit,
 ) {
-    BottomAppBar(
-        containerColor = MaterialTheme.colorScheme.primaryContainer,
-        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+    var showCalendar by remember { mutableStateOf(false) }
+    val today = LocalDate.now()
+    val yesterday = today.minusDays(1)
+    val tomorrow = today.plusDays(1)
+    val targetDates = listOf(yesterday, today, tomorrow)
+    var pickedDate by remember { mutableStateOf<LocalDate?>(null) }
+
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shadowElevation = 8.dp,
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Spacing.lg, vertical = Spacing.md),
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onCancel) {
-                    Icon(Icons.Default.Close, "Cancel")
-                }
-                Text("Copy/Move to:", style = MaterialTheme.typography.titleMedium)
-            }
-            Row {
-                val yesterday = LocalDate.now().minusDays(1)
-                val today = LocalDate.now()
-                val tomorrow = LocalDate.now().plusDays(1)
-                TextButton(onClick = { onSelectDestination(yesterday) }) { Text("Yesterday") }
-                TextButton(onClick = { onSelectDestination(today) }) { Text("Today") }
-                TextButton(onClick = { onSelectDestination(tomorrow) }) { Text("Tomorrow") }
-                if (selectedDate != yesterday && selectedDate != today && selectedDate != tomorrow) {
-                    TextButton(onClick = { onSelectDestination(selectedDate) }) {
-                        Text(selectedDate.format(DateTimeFormatter.ofPattern("MMM d")))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onCancel) {
+                        Icon(Icons.Default.Close, contentDescription = "Cancel")
                     }
+                    Text(
+                        text = if (action is Action.Copy) "Copy $selectedCount to" else "Move $selectedCount to",
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                    )
                 }
+                IconButton(onClick = { showCalendar = true }) {
+                    Icon(Icons.Default.CalendarMonth, contentDescription = "Pick a date")
+                }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            ) {
+                targetDates.forEach { date ->
+                    val label = when (date) {
+                        yesterday -> "Yesterday"
+                        today -> "Today"
+                        tomorrow -> "Tomorrow"
+                        else -> date.format(DateTimeFormatter.ofPattern("MMM d"))
+                    }
+                    val isSelected = pickedDate == date
+                    val isEnabled = !(action is Action.Move && date == selectedDate)
+                    FilterChip(
+                        selected = isSelected,
+                        onClick = { if (isEnabled) pickedDate = date },
+                        enabled = isEnabled,
+                        label = { Text(label) },
+                        shape = MacroTrackPillShape,
+                        colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = brandPrimary(),
+                            selectedLabelColor = brandOnPrimary(),
+                        ),
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+            val destination = pickedDate
+            val canConfirm = destination != null
+            val confirmLabel = if (destination != null) {
+                val dateLabel = when (destination) {
+                    yesterday -> "yesterday"
+                    today -> "today"
+                    tomorrow -> "tomorrow"
+                    else -> destination.format(DateTimeFormatter.ofPattern("EEE, MMM d"))
+                }
+                val verb = if (action is Action.Copy) "Copy" else "Move"
+                "$verb $selectedCount → $dateLabel"
+            } else {
+                val verb = if (action is Action.Copy) "Copy" else "Move"
+                "$verb $selectedCount"
+            }
+            androidx.compose.material3.Button(
+                onClick = { destination?.let { onSelectDestination(it) } },
+                enabled = canConfirm,
+                shape = MacroTrackPillShape,
+                colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                    containerColor = brandPrimary(),
+                    contentColor = brandOnPrimary(),
+                ),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(confirmLabel)
             }
         }
+    }
+
+    if (showCalendar) {
+        CalendarModal(
+            selectedDate = selectedDate,
+            onDateSelected = { date ->
+                pickedDate = date
+                showCalendar = false
+            },
+            onDismiss = { showCalendar = false },
+        )
     }
 }

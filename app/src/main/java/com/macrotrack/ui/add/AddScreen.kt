@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import com.macrotrack.ui.theme.Spacing
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDropDown
@@ -18,6 +19,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.PrimaryTabRow
+import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -28,9 +30,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.macrotrack.domain.model.Section
+import com.macrotrack.ui.theme.brandPrimary
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -43,19 +49,37 @@ fun AddScreen(
     val selectedTab = modes.indexOf(uiState.mode).coerceAtLeast(0)
     val pendingFood = uiState.pendingFood
 
+    val relDate = when (uiState.date) {
+        LocalDate.now() -> "Today"
+        LocalDate.now().minusDays(1) -> "Yesterday"
+        else -> uiState.date.format(DateTimeFormatter.ofPattern("EEE, MMM d"))
+    }
+    val sectionName =
+        uiState.sections.find { it.id == uiState.targetSectionId }?.name ?: "Dinner"
+
     var sectionMenuExpanded by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
-                        Text("Add Food")
+                    val pending = uiState.pendingFood
+                    if (pending != null) {
                         Text(
-                            uiState.dateIso,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            pending.name,
+                            style = MaterialTheme.typography.titleMedium,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                         )
+                    } else {
+                        Column {
+                            Text(relDate, style = MaterialTheme.typography.titleMedium)
+                            Text(
+                                sectionName,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 },
                 navigationIcon = {
@@ -69,7 +93,7 @@ fun AddScreen(
             uiState.message?.let { msg ->
                 Snackbar(
                     action = { Text("OK"); viewModel.clearMessage() },
-                    modifier = Modifier.padding(16.dp)
+                    modifier = Modifier.padding(Spacing.lg)
                 ) { Text(msg) }
             }
         }
@@ -88,12 +112,31 @@ fun AddScreen(
                 onSectionSelected = { viewModel.setTargetSection(it) }
             )
 
-            PrimaryTabRow(selectedTabIndex = selectedTab) {
+            PrimaryTabRow(
+                selectedTabIndex = selectedTab,
+                indicator = {
+                    TabRowDefaults.PrimaryIndicator(
+                        modifier = Modifier.tabIndicatorOffset(selectedTab),
+                        height = 3.dp,
+                        color = brandPrimary()
+                    )
+                }
+            ) {
                 modes.forEachIndexed { index, mode ->
+                    val selected = selectedTab == index
                     Tab(
-                        selected = selectedTab == index,
-                        onClick = { viewModel.setMode(mode) },
-                        text = { Text(mode.label) }
+                        selected = selected,
+                        onClick = {
+                            if (uiState.pendingFood != null) viewModel.backFromPortion()
+                            viewModel.setMode(mode)
+                        },
+                        text = {
+                            Text(
+                                mode.label,
+                                color = if (selected) brandPrimary() else MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
+                            )
+                        }
                     )
                 }
             }
@@ -102,6 +145,7 @@ fun AddScreen(
                 if (pendingFood != null) {
                     PortionSizeScreen(
                         food = pendingFood,
+                        sectionName = sectionName,
                         onConfirm = viewModel::confirmPortion,
                         onBack = viewModel::backFromPortion
                     )
@@ -110,7 +154,8 @@ fun AddScreen(
                         AddMode.SEARCH -> SearchContent(
                             uiState = uiState,
                             onQueryChanged = viewModel::onQueryChanged,
-                            onFoodSelected = viewModel::selectFood
+                            onFoodSelected = viewModel::selectFood,
+                            onQuickAddClick = { viewModel.setMode(AddMode.QUICK_ADD) }
                         )
                         AddMode.BARCODE -> BarcodeScanScreen(onBarcodeDetected = viewModel::onBarcodeScanned)
                         AddMode.LABEL -> LabelScanScreen(onLabelConfirmed = viewModel::onLabelParsed)
@@ -139,7 +184,7 @@ private fun SectionSelector(
     ExposedDropdownMenuBox(
         expanded = expanded,
         onExpandedChange = onExpandedChange,
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+        modifier = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.xs)
     ) {
         androidx.compose.material3.OutlinedTextField(
             value = selected?.name ?: "Select section",
@@ -173,5 +218,5 @@ private val AddMode.label: String
         AddMode.SEARCH -> "Search"
         AddMode.BARCODE -> "Barcode"
         AddMode.LABEL -> "Label"
-        AddMode.QUICK_ADD -> "Quick Add"
+        AddMode.QUICK_ADD -> "Quick"
     }

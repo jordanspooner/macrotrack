@@ -14,11 +14,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.macrotrack.domain.model.LogEntry
-import com.macrotrack.ui.theme.macroProteinColor
+import com.macrotrack.ui.theme.MotionTokens
+import com.macrotrack.ui.theme.Spacing
+import com.macrotrack.ui.theme.macroCaloriesColor
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -27,7 +28,6 @@ fun FoodItemCard(
     isSelected: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
-    accentColor: Color = macroProteinColor(),
     modifier: Modifier = Modifier
 ) {
     val backgroundColor by animateColorAsState(
@@ -36,13 +36,13 @@ fun FoodItemCard(
         } else {
             MaterialTheme.colorScheme.surface
         },
-        animationSpec = tween(durationMillis = 200),
+        animationSpec = tween(durationMillis = MotionTokens.medium),
     )
 
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp),
+            .padding(horizontal = Spacing.lg, vertical = Spacing.xs),
         shape = MaterialTheme.shapes.medium,
         colors = CardDefaults.cardColors(containerColor = backgroundColor),
         elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) 3.dp else 1.dp),
@@ -59,12 +59,12 @@ fun FoodItemCard(
                 modifier = Modifier
                     .width(3.dp)
                     .fillMaxHeight()
-                    .background(accentColor)
+                    .background(macroCaloriesColor())
             )
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .padding(horizontal = 16.dp, vertical = 12.dp)
+                    .padding(horizontal = Spacing.lg, vertical = Spacing.md)
             ) {
                 Text(
                     text = entry.name,

@@ -80,44 +80,37 @@ private val LightColorScheme = lightColorScheme(
     scrim = md_theme_light_scrim,
 )
 
+private val isDark: Boolean
+    @Composable get() = isSystemInDarkTheme()
+
 /**
- * Macro-coloured accents derived from the active color scheme so they adapt
- * to Material You dynamic colour on Android 12+. Use these instead of the
- * raw color constants in [Color.kt] whenever inside a @Composable.
- *
- * Mapping (intentional — uses the entire M3 tonal palette):
- *  - kcal   → primary           (the headline metric gets the headline color)
- *  - protein → tertiary          (cool, calm - protein is steady)
- *  - carbs  → secondary          (medium emphasis, medium-energy macro)
- *  - fat    → error              (warmest red — small amounts matter)
- *
- * When a macro exceeds its goal, the caller should switch to
- * [MaterialTheme.colorScheme.error] regardless of the macro type to flag the
- * overage clearly (see [overageColor]).
+ * Authored macro accents — stable across devices, keyed on the system theme.
+ * Used by charts, summary chips, and overage indicators. When a goal is
+ * exceeded, callers switch to [overageColor] (the scheme's error color).
  */
 @Composable
-fun macroCaloriesColor(): Color = MaterialTheme.colorScheme.primary
+fun macroCaloriesColor(): Color = if (isDark) MacroCaloriesDark else MacroCaloriesLight
 
 @Composable
-fun macroProteinColor(): Color = MaterialTheme.colorScheme.tertiary
+fun macroProteinColor(): Color = if (isDark) MacroProteinDark else MacroProteinLight
 
 @Composable
-fun macroCarbsColor(): Color = MaterialTheme.colorScheme.secondary
+fun macroCarbsColor(): Color = if (isDark) MacroCarbsDark else MacroCarbsLight
 
 @Composable
-fun macroFatColor(): Color = MaterialTheme.colorScheme.error
+fun macroFatColor(): Color = if (isDark) MacroFatDark else MacroFatLight
+
+/** Authored brand primary (sage) — used for FAB, tab indicator, CTAs. */
+@Composable
+fun brandPrimary(): Color = if (isDark) BrandPrimaryDark else BrandPrimaryLight
+
+/** Authored brand on-primary (cream/white) for use on brand-filled surfaces. */
+@Composable
+fun brandOnPrimary(): Color = if (isDark) Color(0xFF00210F) else Color(0xFFFFFFFF)
 
 /** Color used when a goal is exceeded. Always the scheme's error color. */
 @Composable
 fun overageColor(): Color = MaterialTheme.colorScheme.error
-
-/** Soft success indicator — typically primary (not green). */
-@Composable
-fun successColor(): Color = MaterialTheme.colorScheme.primary
-
-/** Soft warning — typically error but used in non-failure contexts. */
-@Composable
-fun warningColor(): Color = MaterialTheme.colorScheme.error
 
 /**
  * A very faint surface tint for resting-state backgrounds (replaces the old
@@ -127,6 +120,9 @@ fun warningColor(): Color = MaterialTheme.colorScheme.error
 @Composable
 fun restingSurfaceColor(): Color =
     MaterialTheme.colorScheme.surface.copy(alpha = 0.04f)
+
+/** Fully-rounded pill for chips and CTA buttons (re-export of [pillShape]). */
+val MacroTrackPillShape = pillShape
 
 @Composable
 fun MacroTrackTheme(

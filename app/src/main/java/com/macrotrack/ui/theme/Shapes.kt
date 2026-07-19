@@ -20,3 +20,6 @@ val MacroTrackShapes = Shapes(
     large = RoundedCornerShape(24.dp),
     extraLarge = RoundedCornerShape(28.dp),
 )
+
+/** Fully-rounded pill for chips and CTA buttons. */
+val pillShape = RoundedCornerShape(50)

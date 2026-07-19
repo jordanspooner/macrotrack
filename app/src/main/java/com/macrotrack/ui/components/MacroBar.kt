@@ -1,45 +1,35 @@
 package com.macrotrack.ui.components
 
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import kotlin.math.min
 
-/**
- * Thin progress bar. Size is supplied by the caller via [modifier] (the bar
- * has no intrinsic width/height of its own) so it can be reused at various
- * dimensions (e.g. a 20x3dp at-a-glance indicator or a 4dp tall macro row).
- */
 @Composable
 fun MacroBar(
-    progress: Float, // 0.0 to 1.0 (can go over 1.0)
+    progress: Float,
     color: Color,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    overageColor: Color? = null,
 ) {
-    val animatedProgress by animateFloatAsState(
-        targetValue = progress.coerceIn(0f, 1f),
-        animationSpec = tween(durationMillis = 300),
-    )
-    Box(
+    val goal = min(progress.coerceAtLeast(0f), 1f)
+    val over = (progress - 1f).coerceIn(0f, 1f)
+    val track = (2f - progress).coerceIn(0f, 2f)
+    Row(
         modifier = modifier
-            .clip(RoundedCornerShape(4.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .fillMaxWidth()
+            .height(4.dp)
+            .background(color.copy(alpha = 0.12f)),
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth(animatedProgress)
-                .fillMaxHeight()
-                .background(color)
-        )
+        if (goal > 0f) Box(Modifier.weight(goal).fillMaxHeight().background(color))
+        if (over > 0f && overageColor != null) Box(Modifier.weight(over).fillMaxHeight().background(overageColor))
+        if (track > 0f) Box(Modifier.weight(track).fillMaxHeight())
     }
 }

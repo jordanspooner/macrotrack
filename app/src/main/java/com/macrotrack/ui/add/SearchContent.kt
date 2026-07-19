@@ -2,8 +2,10 @@ package com.macrotrack.ui.add
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -19,6 +21,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -26,12 +29,16 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.macrotrack.domain.model.FoodItem
 import com.macrotrack.domain.model.Macros
+import com.macrotrack.ui.theme.MacroTrackPillShape
+import com.macrotrack.ui.theme.Spacing
+import com.macrotrack.ui.theme.brandPrimary
 
 @Composable
 fun SearchContent(
     uiState: AddUiState,
     onQueryChanged: (String) -> Unit,
-    onFoodSelected: (FoodItem) -> Unit
+    onFoodSelected: (FoodItem) -> Unit,
+    onQuickAddClick: () -> Unit
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         OutlinedTextField(
@@ -39,7 +46,7 @@ fun SearchContent(
             onValueChange = onQueryChanged,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+                .padding(horizontal = Spacing.lg, vertical = Spacing.sm),
             placeholder = { Text("Search foods…") },
             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
             singleLine = true
@@ -50,12 +57,41 @@ fun SearchContent(
             text = header,
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+            modifier = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.xs)
         )
 
-        LazyColumn {
-            items(uiState.results, key = { it.id to it.name }) { food ->
-                FoodResultItem(food = food, onClick = { onFoodSelected(food) })
+        if (uiState.results.isEmpty() && uiState.query.isNotBlank()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(Spacing.lg),
+                contentAlignment = Alignment.Center
+            ) {
+                Surface(
+                    shape = MacroTrackPillShape,
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    modifier = Modifier.padding(Spacing.md)
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(Spacing.lg)
+                    ) {
+                        Text(
+                            "No foods match “${uiState.query}”.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        TextButton(onClick = onQuickAddClick) {
+                            Text("Quick add manually", color = brandPrimary())
+                        }
+                    }
+                }
+            }
+        } else {
+            LazyColumn {
+                items(uiState.results, key = { it.id to it.name }) { food ->
+                    FoodResultItem(food = food, onClick = { onFoodSelected(food) })
+                }
             }
         }
     }
@@ -99,7 +135,11 @@ fun FoodResultItem(food: FoodItem, onClick: () -> Unit) {
         },
         trailingContent = {
             IconButton(onClick = onClick) {
-                Icon(Icons.Default.Add, contentDescription = "Quick add")
+                Icon(
+                    Icons.Default.Add,
+                    contentDescription = "Quick add",
+                    tint = brandPrimary()
+                )
             }
         }
     )

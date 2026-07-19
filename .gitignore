@@ -33,3 +33,7 @@ app/src/test/java/com/macrotrack/domain/parser/LabelParserOcrAnalysisTest.kt
 # Tooling caches / config
 .kotlin/
 opencode.json
+
+# Stray root-level compiled artifacts
+*.class
+META-INF/
