@@ -52,7 +52,7 @@ fun PortionSizeScreen(
     val defaultLabel = food.defaultPortionLabel
 
     var portionG by remember { mutableFloatStateOf(defaultPortionG) }
-    var selectedMult by remember { mutableStateOf<Float?>(null) }
+    var selectedMult by remember { mutableStateOf<Float?>(1f) }
 
     val portioned = food.macroPer100g * (portionG / 100f)
 
@@ -98,7 +98,6 @@ fun PortionSizeScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
-            // Quick portion presets
             FlowRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
@@ -121,7 +120,6 @@ fun PortionSizeScreen(
                 }
             }
 
-            // Custom amount
             OutlinedTextField(
                 value = if (portionG % 1 == 0f) portionG.toInt().toString() else portionG.toString(),
                 onValueChange = {
