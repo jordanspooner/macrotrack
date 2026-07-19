@@ -10,7 +10,6 @@ data class DraftSection(
     val id: Long,
     val name: String,
     val timeOfDay: LocalTime,
-    val sortOrder: Int,
     val isNew: Boolean = false,
 )
 

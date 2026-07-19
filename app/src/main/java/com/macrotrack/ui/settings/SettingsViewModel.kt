@@ -161,12 +161,10 @@ class SettingsViewModel @Inject constructor(
 
     fun addDraftSection(name: String) {
         val maxId = _draftSections.value.maxOfOrNull { it.id } ?: 0L
-        val maxOrder = _draftSections.value.maxOfOrNull { it.sortOrder } ?: 0
         val newSection = DraftSection(
             id = maxId + 1,
             name = name,
             timeOfDay = LocalTime.of(12, 0),
-            sortOrder = maxOrder + 1,
             isNew = true
         )
         _draftSections.value = _draftSections.value + newSection
@@ -176,9 +174,9 @@ class SettingsViewModel @Inject constructor(
 
     fun resetSectionsToDefaults() {
         _draftSections.value = listOf(
-            DraftSection(id = 1, name = "Breakfast", timeOfDay = LocalTime.of(6, 0), sortOrder = 0),
-            DraftSection(id = 2, name = "Lunch", timeOfDay = LocalTime.of(12, 0), sortOrder = 1),
-            DraftSection(id = 3, name = "Dinner", timeOfDay = LocalTime.of(18, 0), sortOrder = 2),
+            DraftSection(id = 1, name = "Breakfast", timeOfDay = LocalTime.of(6, 0)),
+            DraftSection(id = 2, name = "Lunch", timeOfDay = LocalTime.of(12, 0)),
+            DraftSection(id = 3, name = "Dinner", timeOfDay = LocalTime.of(18, 0)),
         )
         _hasUnsavedChanges.value = true
     }
@@ -188,12 +186,11 @@ class SettingsViewModel @Inject constructor(
             _isSavingSections.value = true
             val sections = _draftSections.value
                 .sortedBy { it.timeOfDay }
-                .mapIndexed { index, ds ->
+                .map { ds ->
                     Section(
                         id = ds.id,
                         name = ds.name,
                         timeOfDay = ds.timeOfDay,
-                        sortOrder = index,
                     )
                 }
             updateSectionsUseCase(sections)
@@ -271,7 +268,6 @@ class SettingsViewModel @Inject constructor(
         id = id,
         name = name,
         timeOfDay = timeOfDay,
-        sortOrder = sortOrder,
     )
 
     private fun persistDistribution() {

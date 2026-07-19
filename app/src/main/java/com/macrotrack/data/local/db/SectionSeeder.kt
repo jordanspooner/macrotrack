@@ -19,8 +19,8 @@ class SectionSeeder @Inject constructor(
     }
 
     private fun defaultSections(): List<SectionEntity> = listOf(
-        SectionEntity(name = "Breakfast", timeOfDay = "06:00", sortOrder = 0),
-        SectionEntity(name = "Lunch",     timeOfDay = "12:00", sortOrder = 1),
-        SectionEntity(name = "Dinner",    timeOfDay = "18:00", sortOrder = 2),
+        SectionEntity(name = "Breakfast", timeOfDay = "06:00"),
+        SectionEntity(name = "Lunch",     timeOfDay = "12:00"),
+        SectionEntity(name = "Dinner",    timeOfDay = "18:00"),
     )
 }

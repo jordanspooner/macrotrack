@@ -8,13 +8,11 @@ import java.time.format.DateTimeFormatter
 fun SectionEntity.toDomain() = Section(
     id = id,
     name = name,
-    timeOfDay = LocalTime.parse(timeOfDay, DateTimeFormatter.ofPattern("HH:mm")),
-    sortOrder = sortOrder
+    timeOfDay = LocalTime.parse(timeOfDay, DateTimeFormatter.ofPattern("HH:mm"))
 )
 
 fun Section.toEntity() = SectionEntity(
     id = id,
     name = name,
-    timeOfDay = timeOfDay.format(DateTimeFormatter.ofPattern("HH:mm")),
-    sortOrder = sortOrder
+    timeOfDay = timeOfDay.format(DateTimeFormatter.ofPattern("HH:mm"))
 )

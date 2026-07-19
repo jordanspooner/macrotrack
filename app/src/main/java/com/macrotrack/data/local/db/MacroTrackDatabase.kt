@@ -20,7 +20,7 @@ import com.macrotrack.data.local.db.entity.UserFoodEntity
         SectionEntity::class,
         UserFoodEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class MacroTrackDatabase : RoomDatabase() {

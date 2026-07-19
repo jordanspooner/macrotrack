@@ -10,9 +10,9 @@ class SectionDistributionTest {
     @Test
     fun `init distribution splits evenly across sections`() {
         val sections = listOf(
-            DraftSection(id = 1, name = "A", timeOfDay = java.time.LocalTime.of(8, 0), sortOrder = 0),
-            DraftSection(id = 2, name = "B", timeOfDay = java.time.LocalTime.of(12, 0), sortOrder = 1),
-            DraftSection(id = 3, name = "C", timeOfDay = java.time.LocalTime.of(18, 0), sortOrder = 2),
+            DraftSection(id = 1, name = "A", timeOfDay = java.time.LocalTime.of(8, 0)),
+            DraftSection(id = 2, name = "B", timeOfDay = java.time.LocalTime.of(12, 0)),
+            DraftSection(id = 3, name = "C", timeOfDay = java.time.LocalTime.of(18, 0)),
         )
         val dist = SettingsViewModel.initDistribution(sections)
         assertEquals(3, dist.size)
@@ -44,8 +44,8 @@ class SectionDistributionTest {
     fun `surplus increase below 100 leaves others unchanged`() {
         val vm = SettingsViewModelFixture(
             sections = listOf(
-                DraftSection(id = 1, name = "A", timeOfDay = java.time.LocalTime.of(8, 0), sortOrder = 0),
-                DraftSection(id = 2, name = "B", timeOfDay = java.time.LocalTime.of(12, 0), sortOrder = 1),
+                DraftSection(id = 1, name = "A", timeOfDay = java.time.LocalTime.of(8, 0)),
+                DraftSection(id = 2, name = "B", timeOfDay = java.time.LocalTime.of(12, 0)),
             ),
             distribution = mapOf(
                 1L to mapOf(MacroType.PROTEIN to 20f, MacroType.CARBS to 20f, MacroType.FAT to 20f),
@@ -62,8 +62,8 @@ class SectionDistributionTest {
     fun `increase past 100 proportionally scales others down`() {
         val vm = SettingsViewModelFixture(
             sections = listOf(
-                DraftSection(id = 1, name = "A", timeOfDay = java.time.LocalTime.of(8, 0), sortOrder = 0),
-                DraftSection(id = 2, name = "B", timeOfDay = java.time.LocalTime.of(12, 0), sortOrder = 1),
+                DraftSection(id = 1, name = "A", timeOfDay = java.time.LocalTime.of(8, 0)),
+                DraftSection(id = 2, name = "B", timeOfDay = java.time.LocalTime.of(12, 0)),
             ),
             distribution = mapOf(
                 1L to mapOf(MacroType.PROTEIN to 60f, MacroType.CARBS to 0f, MacroType.FAT to 0f),
@@ -80,8 +80,8 @@ class SectionDistributionTest {
     fun `residual under 100 snaps to 100 via normalizeResidual`() {
         val vm = SettingsViewModelFixture(
             sections = listOf(
-                DraftSection(id = 1, name = "A", timeOfDay = java.time.LocalTime.of(8, 0), sortOrder = 0),
-                DraftSection(id = 2, name = "B", timeOfDay = java.time.LocalTime.of(12, 0), sortOrder = 1),
+                DraftSection(id = 1, name = "A", timeOfDay = java.time.LocalTime.of(8, 0)),
+                DraftSection(id = 2, name = "B", timeOfDay = java.time.LocalTime.of(12, 0)),
             ),
             distribution = mapOf(
                 1L to mapOf(MacroType.PROTEIN to 33.32f, MacroType.CARBS to 0f, MacroType.FAT to 0f),

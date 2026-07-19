@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface SectionDao {
-    @Query("SELECT * FROM sections ORDER BY sortOrder ASC")
+    @Query("SELECT * FROM sections ORDER BY timeOfDay ASC")
     fun getAllSections(): Flow<List<SectionEntity>>
 
     @Query("SELECT COUNT(*) FROM sections")

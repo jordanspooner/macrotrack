@@ -94,7 +94,7 @@ class LogViewModel @Inject constructor(
                 totalMacros = sectionMacros,
                 isExpanded = !collapsedSections.contains(section.id)
             )
-        }.sortedBy { it.section.sortOrder }
+        }.sortedBy { it.section.timeOfDay }
 
         LogUiState(
             selectedDate = date,
