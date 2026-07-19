@@ -42,6 +42,8 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun AddScreen(
     onBack: () -> Unit,
+    onNavigateToFoodSources: () -> Unit = {},
+    onEditFood: (Long) -> Unit = {},
     viewModel: AddViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -155,7 +157,9 @@ fun AddScreen(
                             uiState = uiState,
                             onQueryChanged = viewModel::onQueryChanged,
                             onFoodSelected = viewModel::selectFood,
-                            onQuickAddClick = { viewModel.setMode(AddMode.QUICK_ADD) }
+                            onQuickAddClick = { viewModel.setMode(AddMode.QUICK_ADD) },
+                            onManageFoodSources = onNavigateToFoodSources,
+                            onEditFood = onEditFood
                         )
                         AddMode.BARCODE -> BarcodeScanScreen(onBarcodeDetected = viewModel::onBarcodeScanned)
                         AddMode.LABEL -> LabelScanScreen(onLabelConfirmed = viewModel::onLabelParsed)

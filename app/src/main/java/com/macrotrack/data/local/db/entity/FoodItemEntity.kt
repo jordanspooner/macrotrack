@@ -1,14 +1,19 @@
 package com.macrotrack.data.local.db.entity
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
-import com.macrotrack.domain.model.Source
 
-@Entity(tableName = "food_items")
+@Entity(
+    tableName = "food_items",
+    indices = [Index(value = ["dataSourceId"])]
+)
 data class FoodItemEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    val source: String,             // USDA, OPEN_FOOD_FACTS, USER
+    val source: String,
     val sourceId: String? = null,
+    val dataSourceId: String? = null,
     val ean: String? = null,
     val brand: String? = null,
     val name: String,

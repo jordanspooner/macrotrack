@@ -12,7 +12,10 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.macrotrack.ui.add.AddScreen
 import com.macrotrack.ui.edit.EditEntryScreen
+import com.macrotrack.ui.editfood.EditFoodScreen
+import com.macrotrack.ui.foodsources.FoodSourcesScreen
 import com.macrotrack.ui.log.LogScreen
+import com.macrotrack.ui.myfoods.MyFoodsScreen
 import com.macrotrack.ui.settings.SettingsScreen
 import com.macrotrack.ui.theme.MacroTrackTheme
 import dagger.hilt.android.AndroidEntryPoint
@@ -46,20 +49,40 @@ class MainActivity : ComponentActivity() {
                         }
                         composable("settings") {
                             SettingsScreen(
-                                onBack = { navController.popBackStack() }
+                                onBack = { navController.popBackStack() },
+                                onNavigateToFoodSources = { navController.navigate("food-sources") }
                             )
                         }
                         composable(
                             route = "add?date={date}&sectionId={sectionId}&mode={mode}"
                         ) {
                             AddScreen(
-                                onBack = { navController.popBackStack() }
+                                onBack = { navController.popBackStack() },
+                                onNavigateToFoodSources = { navController.navigate("food-sources") },
+                                onEditFood = { foodId -> navController.navigate("edit-food/$foodId") }
                             )
                         }
                         composable(
                             route = "edit-entry/{entryId}/{dateIso}"
                         ) { backStackEntry ->
                             EditEntryScreen(
+                                onBack = { navController.popBackStack() }
+                            )
+                        }
+                        composable("food-sources") {
+                            FoodSourcesScreen(
+                                onBack = { navController.popBackStack() },
+                                onNavigateToMyFoods = { navController.navigate("my-foods") }
+                            )
+                        }
+                        composable("my-foods") {
+                            MyFoodsScreen(
+                                onBack = { navController.popBackStack() },
+                                onEditFood = { foodId -> navController.navigate("edit-food/$foodId") }
+                            )
+                        }
+                        composable("edit-food/{foodId}") {
+                            EditFoodScreen(
                                 onBack = { navController.popBackStack() }
                             )
                         }

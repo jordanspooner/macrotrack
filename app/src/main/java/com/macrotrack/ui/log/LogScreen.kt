@@ -59,19 +59,11 @@ fun LogScreen(
     onEditEntry: (entryId: Long, date: LocalDate) -> Unit,
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    val reseedMessage by viewModel.reseedMessage.collectAsState()
     var showCalendar by remember { mutableStateOf(false) }
     var showAddMenu by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var isForward by remember { mutableStateOf(true) }
     val snackbarHostState = remember { SnackbarHostState() }
-
-    LaunchedEffect(reseedMessage) {
-        reseedMessage?.let {
-            snackbarHostState.showSnackbar(it)
-            viewModel.reseedMessageShown()
-        }
-    }
 
     Scaffold(
         topBar = {

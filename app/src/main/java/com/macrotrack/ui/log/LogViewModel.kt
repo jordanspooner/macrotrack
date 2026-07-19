@@ -7,7 +7,6 @@ import com.macrotrack.domain.model.DailySummary
 import com.macrotrack.domain.model.LogEntry
 import com.macrotrack.domain.model.Macros
 import com.macrotrack.domain.model.Section
-import com.macrotrack.domain.usecase.food.ReseedFoodDatabaseUseCase
 import com.macrotrack.domain.usecase.log.CopyLogEntriesUseCase
 import com.macrotrack.domain.usecase.log.DeleteLogEntriesUseCase
 import com.macrotrack.domain.usecase.log.GetDailyLogUseCase
@@ -37,7 +36,6 @@ class LogViewModel @Inject constructor(
     private val deleteLogEntriesUseCase: DeleteLogEntriesUseCase,
     private val copyLogEntriesUseCase: CopyLogEntriesUseCase,
     private val moveLogEntriesUseCase: MoveLogEntriesUseCase,
-    private val reseedFoodDatabaseUseCase: ReseedFoodDatabaseUseCase,
     private val getWeeklyMacrosUseCase: GetWeeklyMacrosUseCase,
 ) : ViewModel() {
 
@@ -45,9 +43,6 @@ class LogViewModel @Inject constructor(
     private val _selectionMode = MutableStateFlow<SelectionMode>(SelectionMode.Off)
     private val _collapsedSections = MutableStateFlow<Set<Long>>(emptySet())
     private var needsCollapseSeed = true
-
-    private val _reseedMessage = MutableStateFlow<String?>(null)
-    val reseedMessage: StateFlow<String?> = _reseedMessage
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val uiState: StateFlow<LogUiState> = combine(
@@ -152,21 +147,6 @@ class LogViewModel @Inject constructor(
 
     fun exitSelectionMode() {
         _selectionMode.value = SelectionMode.Off
-    }
-
-    fun reseedMessageShown() {
-        _reseedMessage.value = null
-    }
-
-    fun onReseedFoodDatabase() {
-        viewModelScope.launch {
-            val count = runCatching { reseedFoodDatabaseUseCase() }.getOrDefault(-1)
-            _reseedMessage.value = if (count >= 0) {
-                "Rebuilt food database with $count foods"
-            } else {
-                "Failed to rebuild food database"
-            }
-        }
     }
 
     private fun selectedEntries(): List<LogEntry> {
