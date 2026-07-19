@@ -62,7 +62,6 @@ fun PortionSizeScreen(
     ) { padding ->
         PortionSizeContent(
             food = food,
-            sectionName = sectionName,
             confirmLabel = "Add to $sectionName · ${food.macroPer100g.kcal.toInt()} kcal",
             initialPortionG = null,
             initialPortionLabel = null,
@@ -76,7 +75,6 @@ fun PortionSizeScreen(
 @Composable
 fun PortionSizeContent(
     food: FoodItem,
-    sectionName: String,
     confirmLabel: String,
     initialPortionG: Float?,
     initialPortionLabel: String?,

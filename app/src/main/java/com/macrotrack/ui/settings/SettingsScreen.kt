@@ -126,8 +126,10 @@ fun SettingsScreen(
                 .fillMaxSize()
                 .padding(paddingValues),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                horizontal = Spacing.lg,
-                vertical = Spacing.lg,
+                start = Spacing.lg,
+                top = Spacing.lg,
+                end = Spacing.lg,
+                bottom = Spacing.xxxl,
             ),
             verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(Spacing.lg),
         ) {

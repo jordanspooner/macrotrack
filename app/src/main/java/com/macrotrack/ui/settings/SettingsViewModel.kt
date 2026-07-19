@@ -229,7 +229,6 @@ class SettingsViewModel @Inject constructor(
         val current = _sectionDistribution.value.toMutableMap()
         val sectionIds = _draftSections.value.map { it.id }
         val touchedMacros = current.getOrPut(sectionId) { mutableMapOf() }.toMutableMap()
-        val oldValue = touchedMacros[macroType] ?: 0f
         touchedMacros[macroType] = newValue
         current[sectionId] = touchedMacros
 
