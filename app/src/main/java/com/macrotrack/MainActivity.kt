@@ -11,6 +11,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.macrotrack.ui.add.AddScreen
+import com.macrotrack.ui.edit.EditEntryScreen
 import com.macrotrack.ui.log.LogScreen
 import com.macrotrack.ui.settings.SettingsScreen
 import com.macrotrack.ui.theme.MacroTrackTheme
@@ -36,6 +37,10 @@ class MainActivity : ComponentActivity() {
                                 onNavigateToSettings = { navController.navigate("settings") },
                                 onNavigateToAddFood = { sectionId, date, mode ->
                                     navController.navigate("add?date=$date&sectionId=$sectionId&mode=$mode")
+                                },
+                                onEditEntry = { entryId, date ->
+                                    val dateIso = date.format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+                                    navController.navigate("edit-entry/$entryId/$dateIso")
                                 }
                             )
                         }
@@ -48,6 +53,13 @@ class MainActivity : ComponentActivity() {
                             route = "add?date={date}&sectionId={sectionId}&mode={mode}"
                         ) {
                             AddScreen(
+                                onBack = { navController.popBackStack() }
+                            )
+                        }
+                        composable(
+                            route = "edit-entry/{entryId}/{dateIso}"
+                        ) { backStackEntry ->
+                            EditEntryScreen(
                                 onBack = { navController.popBackStack() }
                             )
                         }

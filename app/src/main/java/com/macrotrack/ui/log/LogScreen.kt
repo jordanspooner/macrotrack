@@ -49,7 +49,8 @@ import java.time.format.DateTimeFormatter
 fun LogScreen(
     viewModel: LogViewModel = hiltViewModel(),
     onNavigateToSettings: () -> Unit,
-    onNavigateToAddFood: (sectionId: Long, date: String, mode: String) -> Unit
+    onNavigateToAddFood: (sectionId: Long, date: String, mode: String) -> Unit,
+    onEditEntry: (entryId: Long, date: LocalDate) -> Unit,
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val reseedMessage by viewModel.reseedMessage.collectAsState()
@@ -257,6 +258,8 @@ fun LogScreen(
                                         onClick = {
                                             if (uiState.selectionMode != SelectionMode.Off) {
                                                 viewModel.toggleSelectionMode(entry.id)
+                                            } else {
+                                                onEditEntry(entry.id, uiState.selectedDate)
                                             }
                                         },
                                         onLongClick = {

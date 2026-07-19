@@ -1,6 +1,7 @@
 package com.macrotrack.ui.add
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -11,7 +12,6 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -40,7 +40,7 @@ import com.macrotrack.ui.theme.Spacing
 import com.macrotrack.ui.theme.brandOnPrimary
 import com.macrotrack.ui.theme.brandPrimary
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PortionSizeScreen(
     food: FoodItem,
@@ -48,23 +48,6 @@ fun PortionSizeScreen(
     onConfirm: (portionG: Float, portionLabel: String?) -> Unit,
     onBack: () -> Unit
 ) {
-    val defaultPortionG = food.defaultPortionG ?: 100f
-    val defaultLabel = food.defaultPortionLabel
-
-    var portionG by remember { mutableFloatStateOf(defaultPortionG) }
-    var selectedMult by remember { mutableStateOf<Float?>(1f) }
-
-    val portioned = food.macroPer100g * (portionG / 100f)
-
-    val presets = listOf(
-        0.25f to "1/4",
-        0.5f to "1/2",
-        1f to "1",
-        1.5f to "1.5",
-        2f to "2",
-        3f to "3"
-    )
-
     Scaffold(
         topBar = {
             TopAppBar(
@@ -77,29 +60,68 @@ fun PortionSizeScreen(
             )
         }
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(padding)
-                .padding(Spacing.lg),
-            verticalArrangement = Arrangement.spacedBy(Spacing.lg),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            MacroDonut(
-                macros = portioned,
-                diameter = 180.dp,
-                centerText = "${portioned.kcal.toInt()} kcal"
-            )
+        PortionSizeContent(
+            food = food,
+            sectionName = sectionName,
+            confirmLabel = "Add to $sectionName · ${food.macroPer100g.kcal.toInt()} kcal",
+            initialPortionG = null,
+            initialPortionLabel = null,
+            onConfirm = onConfirm,
+            modifier = Modifier.padding(padding),
+        )
+    }
+}
 
-            Text(
-                "P ${portioned.proteinG.toInt()}g · C ${portioned.carbsG.toInt()}g · F ${portioned.fatG.toInt()}g",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun PortionSizeContent(
+    food: FoodItem,
+    sectionName: String,
+    confirmLabel: String,
+    initialPortionG: Float?,
+    initialPortionLabel: String?,
+    onConfirm: (portionG: Float, portionLabel: String?) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val defaultPortionG = initialPortionG ?: food.defaultPortionG ?: 100f
+    val defaultLabel = initialPortionLabel ?: food.defaultPortionLabel
 
+    var portionG by remember { mutableFloatStateOf(defaultPortionG) }
+    var selectedMult by remember { mutableStateOf<Float?>(if (initialPortionG == null) 1f else null) }
+
+    val portioned = food.macroPer100g * (portionG / 100f)
+
+    val presets = listOf(
+        0.25f to "1/4",
+        0.5f to "1/2",
+        1f to "1",
+        1.5f to "1.5",
+        2f to "2",
+        3f to "3"
+    )
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
+            .padding(Spacing.lg),
+        verticalArrangement = Arrangement.spacedBy(Spacing.lg),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        MacroDonut(
+            macros = portioned,
+            diameter = 180.dp,
+            centerText = "${portioned.kcal.toInt()} kcal"
+        )
+
+        Text(
+            "P ${portioned.proteinG.toInt()}g · C ${portioned.carbsG.toInt()}g · F ${portioned.fatG.toInt()}g",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
             FlowRow(
-                modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
                 verticalArrangement = Arrangement.spacedBy(Spacing.sm)
             ) {
@@ -119,30 +141,30 @@ fun PortionSizeScreen(
                     )
                 }
             }
-
-            OutlinedTextField(
-                value = if (portionG % 1 == 0f) portionG.toInt().toString() else portionG.toString(),
-                onValueChange = {
-                    val v = it.filter { c -> c.isDigit() || c == '.' }.toFloatOrNull()
-                    if (v != null && v > 0f) {
-                        portionG = v
-                        selectedMult = null
-                    }
-                },
-                label = { Text("Custom amount (g)") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(0.6f)
-            )
-
-            SaveButton(
-                hasChanges = true,
-                label = "Add to $sectionName · ${portioned.kcal.toInt()} kcal",
-                onClick = {
-                    val label = if (portionG == defaultPortionG) defaultLabel else null
-                    onConfirm(portionG, label)
-                }
-            )
         }
+
+        OutlinedTextField(
+            value = if (portionG % 1 == 0f) portionG.toInt().toString() else portionG.toString(),
+            onValueChange = {
+                val v = it.filter { c -> c.isDigit() || c == '.' }.toFloatOrNull()
+                if (v != null && v > 0f) {
+                    portionG = v
+                    selectedMult = null
+                }
+            },
+            label = { Text("Custom amount (g)") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(0.7f)
+        )
+
+        SaveButton(
+            hasChanges = true,
+            label = confirmLabel,
+            onClick = {
+                val label = if (portionG == defaultPortionG) defaultLabel else null
+                onConfirm(portionG, label)
+            }
+        )
     }
 }
