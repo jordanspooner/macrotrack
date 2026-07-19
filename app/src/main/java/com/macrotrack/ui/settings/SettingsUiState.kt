@@ -21,6 +21,7 @@ data class SettingsUiState(
     val goalsSaved: Boolean = false,
     val sections: List<Section> = emptyList(),
     val draftSections: List<DraftSection> = emptyList(),
+    val sortedDraftSections: List<DraftSection> = emptyList(),
     val isSavingSections: Boolean = false,
     val sectionsSaved: Boolean = false,
     val sectionGoalsEnabled: Boolean = false,

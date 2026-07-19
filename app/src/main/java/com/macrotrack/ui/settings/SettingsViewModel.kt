@@ -90,6 +90,7 @@ class SettingsViewModel @Inject constructor(
             goalsSaved = goalsQuad.fourth,
             sections = sectionsQuad.first,
             draftSections = sectionsQuad.second,
+            sortedDraftSections = sectionsQuad.second.sortedBy { it.timeOfDay },
             isSavingSections = sectionsQuad.third,
             sectionsSaved = sectionsQuad.fourth,
             sectionGoalsEnabled = distQuad.first,
@@ -133,8 +134,9 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun updateDraftSectionName(index: Int, name: String) {
+    fun updateDraftSectionName(id: Long, name: String) {
         val list = _draftSections.value.toMutableList()
+        val index = list.indexOfFirst { it.id == id }
         if (index in list.indices) {
             list[index] = list[index].copy(name = name)
             _draftSections.value = list
@@ -142,8 +144,9 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun updateDraftSectionTime(index: Int, time: LocalTime) {
+    fun updateDraftSectionTime(id: Long, time: LocalTime) {
         val list = _draftSections.value.toMutableList()
+        val index = list.indexOfFirst { it.id == id }
         if (index in list.indices) {
             list[index] = list[index].copy(timeOfDay = time)
             _draftSections.value = list
@@ -151,13 +154,9 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun removeDraftSection(index: Int) {
-        val list = _draftSections.value.toMutableList()
-        if (index in list.indices) {
-            list.removeAt(index)
-            _draftSections.value = list
-            _hasUnsavedChanges.value = true
-        }
+    fun removeDraftSection(id: Long) {
+        _draftSections.value = _draftSections.value.filter { it.id != id }
+        _hasUnsavedChanges.value = true
     }
 
     fun addDraftSection(name: String) {
@@ -177,10 +176,9 @@ class SettingsViewModel @Inject constructor(
 
     fun resetSectionsToDefaults() {
         _draftSections.value = listOf(
-            DraftSection(id = 1, name = "Breakfast", timeOfDay = LocalTime.of(7, 30), sortOrder = 0),
-            DraftSection(id = 2, name = "Lunch", timeOfDay = LocalTime.of(12, 30), sortOrder = 1),
-            DraftSection(id = 3, name = "Dinner", timeOfDay = LocalTime.of(19, 0), sortOrder = 2),
-            DraftSection(id = 4, name = "Snacks", timeOfDay = LocalTime.of(15, 0), sortOrder = 3),
+            DraftSection(id = 1, name = "Breakfast", timeOfDay = LocalTime.of(6, 0), sortOrder = 0),
+            DraftSection(id = 2, name = "Lunch", timeOfDay = LocalTime.of(12, 0), sortOrder = 1),
+            DraftSection(id = 3, name = "Dinner", timeOfDay = LocalTime.of(18, 0), sortOrder = 2),
         )
         _hasUnsavedChanges.value = true
     }
