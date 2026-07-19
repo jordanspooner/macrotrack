@@ -55,13 +55,13 @@ fun MacroSummaryCard(
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .padding(16.dp),
+            .padding(Spacing.lg),
         shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Row(
-            modifier = Modifier.padding(20.dp),
+            modifier = Modifier.padding(Spacing.xl),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Left column: kcal progress ring (120 x 120).
@@ -179,7 +179,7 @@ private fun MacroRow(
                     "${(percent * 100).roundToInt()}%",
                     style = MaterialTheme.typography.labelSmall,
                     color = resolvedColor,
-                    modifier = Modifier.padding(horizontal = Spacing.sm, vertical = 2.dp),
+                    modifier = Modifier.padding(horizontal = Spacing.sm, vertical = (Spacing.xs / 2)),
                 )
             }
         }
@@ -191,7 +191,7 @@ private fun MacroRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(4.dp)
-                .padding(start = 16.dp, end = Spacing.sm),
+                .padding(start = Spacing.lg, end = Spacing.sm),
         )
     }
 }

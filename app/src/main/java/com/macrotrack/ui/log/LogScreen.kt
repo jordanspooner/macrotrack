@@ -229,7 +229,7 @@ fun LogScreen(
                                         text = "No items logged",
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.padding(horizontal = 32.dp, vertical = 8.dp)
+                                        modifier = Modifier.padding(horizontal = Spacing.xxl, vertical = Spacing.sm)
                                     )
                                 }
                             } else {
@@ -284,11 +284,11 @@ fun LogScreen(
             uiState.sections.firstOrNull { it.section.id == defaultId }?.section?.name ?: "today"
         val dateIso = uiState.selectedDate.format(DateTimeFormatter.ISO_LOCAL_DATE)
         ModalBottomSheet(onDismissRequest = { showAddMenu = false }) {
-            Column(Modifier.padding(bottom = 24.dp)) {
+            Column(Modifier.padding(bottom = Spacing.xl)) {
                 Text(
                     "Add food to $defaultName",
                     style = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
+                    modifier = Modifier.padding(horizontal = Spacing.xl, vertical = Spacing.md),
                 )
                 AddMenuOption(
                     icon = Icons.Default.Search,
@@ -359,7 +359,7 @@ private fun AddMenuOption(
             .fillMaxWidth()
             .height(72.dp)
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = Spacing.lg),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Surface(
@@ -415,7 +415,7 @@ private fun DestinationPickerBar(
         contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.sm),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {

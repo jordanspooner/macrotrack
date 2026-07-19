@@ -10,6 +10,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.macrotrack.domain.model.Macros
+import com.macrotrack.ui.theme.Spacing
 import com.macrotrack.ui.theme.macroCaloriesColor
 import com.macrotrack.ui.theme.macroCarbsColor
 import com.macrotrack.ui.theme.macroFatColor
@@ -22,7 +23,7 @@ fun NutritionRow(
     modifier: Modifier = Modifier
 ) {
     Row(
-        modifier = modifier.padding(horizontal = 8.dp),
+        modifier = modifier.padding(horizontal = Spacing.sm),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

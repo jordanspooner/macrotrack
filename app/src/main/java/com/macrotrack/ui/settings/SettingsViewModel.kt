@@ -16,7 +16,6 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.LocalTime
@@ -131,8 +130,6 @@ class SettingsViewModel @Inject constructor(
             _isSavingGoals.value = false
             _goalsSaved.value = true
             _hasUnsavedChanges.value = false
-            delay(2000)
-            _goalsSaved.value = false
         }
     }
 
@@ -232,9 +229,18 @@ class SettingsViewModel @Inject constructor(
             _isSavingSections.value = false
             _sectionsSaved.value = true
             _hasUnsavedChanges.value = false
-            delay(2000)
-            _sectionsSaved.value = false
         }
+    }
+
+    fun onSnackbarShown() {
+        _goalsSaved.value = false
+        _sectionsSaved.value = false
+    }
+
+    fun discardChanges() {
+        _hasUnsavedChanges.value = false
+        _draftGoals.value = DailyGoals(150, 250, 65)
+        _draftSections.value = emptyList()
     }
 
     fun setSectionGoalsEnabled(enabled: Boolean) {

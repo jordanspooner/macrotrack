@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.macrotrack.domain.model.Macros
+import com.macrotrack.ui.theme.Spacing
 import com.macrotrack.ui.theme.brandPrimary
 import com.macrotrack.ui.theme.macroCarbsColor
 import com.macrotrack.ui.theme.macroFatColor
@@ -45,7 +46,7 @@ fun SectionHeader(
             .clickable(onClick = onToggleExpand)
             .animateContentSize()
             .background(background)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
+            .padding(horizontal = Spacing.lg, vertical = Spacing.md),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
@@ -88,7 +89,7 @@ fun SectionHeader(
 
 @Composable
 private fun MiniMacro(label: String, value: Float, color: Color) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
         Text("${(value).roundToInt()}g $label", style = MaterialTheme.typography.labelSmall, color = color)
     }
 }

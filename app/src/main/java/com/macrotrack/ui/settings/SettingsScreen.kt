@@ -20,7 +20,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -67,6 +66,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.macrotrack.ui.components.SaveButton
+import com.macrotrack.ui.components.MacroDot
 import com.macrotrack.ui.theme.MacroTrackPillShape
 import com.macrotrack.ui.theme.Spacing
 import com.macrotrack.ui.theme.brandPrimary
@@ -90,10 +90,16 @@ fun SettingsScreen(
     var showDiscard by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState.goalsSaved) {
-        if (uiState.goalsSaved) snackbarHostState.showSnackbar("Goals saved")
+        if (uiState.goalsSaved) {
+            snackbarHostState.showSnackbar("Goals saved")
+            viewModel.onSnackbarShown()
+        }
     }
     LaunchedEffect(uiState.sectionsSaved) {
-        if (uiState.sectionsSaved) snackbarHostState.showSnackbar("Sections saved")
+        if (uiState.sectionsSaved) {
+            snackbarHostState.showSnackbar("Sections saved")
+            viewModel.onSnackbarShown()
+        }
     }
 
     BackHandler(enabled = uiState.hasUnsavedChanges) { showDiscard = true }
@@ -557,6 +563,7 @@ fun SettingsScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
+                        viewModel.discardChanges()
                         showDiscard = false
                         onBack()
                     },
@@ -584,15 +591,6 @@ private fun GoalField(
         leadingIcon = { MacroDot(dotColor) },
         modifier = Modifier.fillMaxWidth(),
         singleLine = true,
-    )
-}
-
-@Composable
-private fun MacroDot(color: Color, modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .size(8.dp)
-            .background(color, CircleShape),
     )
 }
 

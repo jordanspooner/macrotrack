@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import com.macrotrack.ui.theme.Spacing
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDropDown
@@ -82,7 +83,7 @@ fun AddScreen(
             uiState.message?.let { msg ->
                 Snackbar(
                     action = { Text("OK"); viewModel.clearMessage() },
-                    modifier = Modifier.padding(16.dp)
+                    modifier = Modifier.padding(Spacing.lg)
                 ) { Text(msg) }
             }
         }
@@ -170,7 +171,7 @@ private fun SectionSelector(
     ExposedDropdownMenuBox(
         expanded = expanded,
         onExpandedChange = onExpandedChange,
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+        modifier = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.xs)
     ) {
         androidx.compose.material3.OutlinedTextField(
             value = selected?.name ?: "Select section",

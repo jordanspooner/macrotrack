@@ -18,6 +18,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.macrotrack.domain.model.LogEntry
 import com.macrotrack.ui.theme.MotionTokens
+import com.macrotrack.ui.theme.Spacing
 import com.macrotrack.ui.theme.macroCaloriesColor
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -41,7 +42,7 @@ fun FoodItemCard(
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp),
+            .padding(horizontal = Spacing.lg, vertical = Spacing.xs),
         shape = MaterialTheme.shapes.medium,
         colors = CardDefaults.cardColors(containerColor = backgroundColor),
         elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) 3.dp else 1.dp),
@@ -63,7 +64,7 @@ fun FoodItemCard(
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .padding(horizontal = 16.dp, vertical = 12.dp)
+                    .padding(horizontal = Spacing.lg, vertical = Spacing.md)
             ) {
                 Text(
                     text = entry.name,
