@@ -1,5 +1,12 @@
 package com.macrotrack.ui.settings
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,7 +38,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.macrotrack.ui.theme.MotionTokens
+import com.macrotrack.ui.theme.Spacing
+import com.macrotrack.ui.theme.brandOnPrimary
+import com.macrotrack.ui.theme.brandPrimary
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
@@ -49,17 +61,6 @@ fun CalendarModal(
 ) {
     val today = LocalDate.now()
     var displayMonth by remember { mutableStateOf(YearMonth.from(selectedDate)) }
-    var clickConfirmDate: LocalDate? by remember { mutableStateOf(null) }
-
-    val gridCells = buildMonthGrid(displayMonth)
-
-    val weekStartColumn = clickConfirmDate?.dayOfWeek?.value?.minus(1)
-        ?: if (selectedDate == clickConfirmDate) selectedDate.dayOfWeek.value - 1 else null
-    val highlightedWeekRow: Int? = clickConfirmDate?.let { chosen ->
-        val startOffset = displayMonth.atDay(1).dayOfWeek.value - 1
-        val index = startOffset + chosen.dayOfMonth - 1
-        index / 7
-    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -68,7 +69,7 @@ fun CalendarModal(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(Spacing.lg),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -88,7 +89,7 @@ fun CalendarModal(
                         DateTimeFormatter.ofPattern("MMMM yyyy", Locale.getDefault()),
                     ),
                     style = MaterialTheme.typography.titleMedium,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    textAlign = TextAlign.Center,
                 )
                 IconButton(
                     onClick = { displayMonth = displayMonth.plusMonths(1) },
@@ -103,70 +104,95 @@ fun CalendarModal(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 8.dp),
+                    .padding(vertical = Spacing.sm),
             ) {
                 DAY_OF_WEEK_HEADERS.forEach { label ->
                     Text(
                         modifier = Modifier.weight(1f),
                         text = label,
                         style = MaterialTheme.typography.labelSmall,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        textAlign = TextAlign.Center,
                     )
                 }
             }
 
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(7),
-                modifier = Modifier.fillMaxWidth(),
-                userScrollEnabled = false,
-            ) {
-                items(gridCells) { date ->
-                    val cellIndex = gridCells.indexOf(date)
-                    val rowIndex = if (cellIndex >= 0) cellIndex / 7 else -1
-                    val isWeekHighlighted = date != null &&
-                        highlightedWeekRow != null &&
-                        rowIndex == highlightedWeekRow
-
-                    if (date == null) {
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .then(
-                                    if (isWeekHighlighted) {
-                                        Modifier.padding(2.dp)
-                                    } else {
-                                        Modifier
-                                    },
+            AnimatedContent(
+                targetState = displayMonth,
+                transitionSpec = {
+                    fadeIn(
+                        animationSpec = tween(
+                            durationMillis = MotionTokens.medium,
+                            easing = MotionTokens.fastEasing,
+                        ),
+                    ) togetherWith fadeOut(
+                        animationSpec = tween(
+                            durationMillis = MotionTokens.medium,
+                            easing = MotionTokens.fastEasing,
+                        ),
+                    )
+                },
+                label = "monthGrid",
+            ) { month ->
+                val gridCells = buildMonthGrid(month)
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(7),
+                    modifier = Modifier.fillMaxWidth(),
+                    userScrollEnabled = false,
+                ) {
+                    items(gridCells) { date ->
+                        if (date == null) {
+                            Box(modifier = Modifier.size(40.dp))
+                        } else {
+                            val isSelected = date == selectedDate
+                            val isToday = date == today
+                            val backgroundColor by animateColorAsState(
+                                targetValue = if (isSelected) brandPrimary() else Color.Transparent,
+                                animationSpec = tween(
+                                    durationMillis = MotionTokens.medium,
+                                    easing = MotionTokens.fastEasing,
                                 ),
-                        )
-                    } else {
-                        val isSelected = date == selectedDate
-                        val isToday = date == today
-                        val backgroundColor = when {
-                            isSelected -> MaterialTheme.colorScheme.primaryContainer
-                            isToday -> MaterialTheme.colorScheme.tertiaryContainer
-                            isWeekHighlighted -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-                            else -> Color.Transparent
-                        }
-                        Surface(
-                            onClick = {
-                                clickConfirmDate = date
-                                onDateSelected(date)
-                            },
-                            color = backgroundColor,
-                            shape = CircleShape,
-                            modifier = Modifier
-                                .size(40.dp)
-                                .padding(2.dp),
-                        ) {
-                            Box(
-                                contentAlignment = Alignment.Center,
-                                modifier = Modifier.fillMaxWidth(),
+                                label = "cellBackground",
+                            )
+                            val textColor by animateColorAsState(
+                                targetValue = when {
+                                    isSelected -> brandOnPrimary()
+                                    isToday -> brandPrimary()
+                                    else -> MaterialTheme.colorScheme.onSurface
+                                },
+                                animationSpec = tween(
+                                    durationMillis = MotionTokens.medium,
+                                    easing = MotionTokens.fastEasing,
+                                ),
+                                label = "cellText",
+                            )
+                            Surface(
+                                onClick = {
+                                    onDateSelected(date)
+                                    onDismiss()
+                                },
+                                color = backgroundColor,
+                                shape = CircleShape,
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .padding(2.dp)
+                                    .then(
+                                        if (isToday && !isSelected) {
+                                            Modifier.border(2.dp, brandPrimary(), CircleShape)
+                                        } else {
+                                            Modifier
+                                        },
+                                    ),
                             ) {
-                                Text(
-                                    text = date.dayOfMonth.toString(),
-                                    fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
-                                )
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
+                                    Text(
+                                        text = date.dayOfMonth.toString(),
+                                        color = textColor,
+                                        fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
+                                    )
+                                }
                             }
                         }
                     }
@@ -176,7 +202,7 @@ fun CalendarModal(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 8.dp),
+                    .padding(top = Spacing.sm),
                 horizontalArrangement = Arrangement.SpaceEvenly,
             ) {
                 TextButton(
@@ -185,15 +211,7 @@ fun CalendarModal(
                         onDismiss()
                     },
                 ) {
-                    Text("Today")
-                }
-                TextButton(
-                    onClick = {
-                        onDateSelected(LocalDate.now())
-                        onDismiss()
-                    },
-                ) {
-                    Text("This Week")
+                    Text("Jump to today", color = brandPrimary())
                 }
             }
         }
