@@ -174,35 +174,6 @@ class SettingsViewModel @Inject constructor(
         _hasUnsavedChanges.value = true
     }
 
-    fun moveDraftSectionUp(index: Int) {
-        val list = _draftSections.value.toMutableList()
-        if (index > 0 && index < list.size) {
-            val item = list.removeAt(index)
-            list.add(index - 1, item)
-            _draftSections.value = list.mapIndexed { i, ds -> ds.copy(sortOrder = i) }
-            _hasUnsavedChanges.value = true
-        }
-    }
-
-    fun moveDraftSectionDown(index: Int) {
-        val list = _draftSections.value.toMutableList()
-        if (index < list.size - 1) {
-            val item = list.removeAt(index)
-            list.add(index + 1, item)
-            _draftSections.value = list.mapIndexed { i, ds -> ds.copy(sortOrder = i) }
-            _hasUnsavedChanges.value = true
-        }
-    }
-
-    fun reorderSections(fromIndex: Int, toIndex: Int) {
-        val list = _draftSections.value.toMutableList()
-        if (fromIndex in list.indices && toIndex in list.indices && fromIndex != toIndex) {
-            val item = list.removeAt(fromIndex)
-            list.add(toIndex, item)
-            _draftSections.value = list.mapIndexed { i, ds -> ds.copy(sortOrder = i) }
-            _hasUnsavedChanges.value = true
-        }
-    }
 
     fun resetSectionsToDefaults() {
         _draftSections.value = listOf(
@@ -217,14 +188,16 @@ class SettingsViewModel @Inject constructor(
     fun saveSections() {
         viewModelScope.launch {
             _isSavingSections.value = true
-            val sections = _draftSections.value.map { ds ->
-                Section(
-                    id = ds.id,
-                    name = ds.name,
-                    timeOfDay = ds.timeOfDay,
-                    sortOrder = ds.sortOrder,
-                )
-            }
+            val sections = _draftSections.value
+                .sortedBy { it.timeOfDay }
+                .mapIndexed { index, ds ->
+                    Section(
+                        id = ds.id,
+                        name = ds.name,
+                        timeOfDay = ds.timeOfDay,
+                        sortOrder = index,
+                    )
+                }
             updateSectionsUseCase(sections)
             _isSavingSections.value = false
             _sectionsSaved.value = true

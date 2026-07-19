@@ -3,7 +3,6 @@ package com.macrotrack.ui.settings
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,7 +24,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -61,7 +59,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -76,7 +73,6 @@ import com.macrotrack.ui.theme.macroFatColor
 import com.macrotrack.ui.theme.macroProteinColor
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
-import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -266,7 +262,6 @@ fun SettingsScreen(
 
             itemsIndexed(uiState.draftSections) { index, ds ->
                 key(ds.id) {
-                    var dragOffset by remember { mutableStateOf(0f) }
                     val showTimePicker = remember { mutableStateOf(false) }
                     val showDelete = remember { mutableStateOf(false) }
                     val timePickerState = rememberTimePickerState(
@@ -306,33 +301,6 @@ fun SettingsScreen(
                             .fillMaxWidth()
                             .padding(vertical = Spacing.xs),
                     ) {
-                        Icon(
-                            imageVector = Icons.Filled.DragHandle,
-                            contentDescription = "Drag to reorder",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier
-                                .size(24.dp)
-                                .pointerInput(ds.id) {
-                                    detectDragGesturesAfterLongPress(
-                                        onDragStart = { dragOffset = 0f },
-                                        onDrag = { change, dragAmount ->
-                                            change.consume()
-                                            dragOffset += dragAmount.y
-                                            val itemHeight = listState.layoutInfo.visibleItemsInfo
-                                                .firstOrNull()?.size?.toFloat() ?: 64f
-                                            val steps = (dragOffset / itemHeight).roundToInt()
-                                            if (steps != 0) {
-                                                val sections = viewModel.uiState.value.draftSections
-                                                val from = sections.indexOfFirst { it.id == ds.id }
-                                                if (from < 0) return@detectDragGesturesAfterLongPress
-                                                val to = (from + steps).coerceIn(0, sections.lastIndex)
-                                                viewModel.reorderSections(from, to)
-                                                dragOffset -= steps * itemHeight
-                                            }
-                                        },
-                                    )
-                                },
-                        )
                         OutlinedTextField(
                             value = ds.name,
                             onValueChange = { viewModel.updateDraftSectionName(index, it) },
