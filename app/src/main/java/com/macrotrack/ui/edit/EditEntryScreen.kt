@@ -41,7 +41,7 @@ fun EditEntryScreen(
         if (state != null) {
             PortionSizeContent(
                 food = state.food,
-                confirmLabel = "Save changes · ${state.food.macroPer100g.kcal.toInt()} kcal",
+                confirmLabel = "Save changes · ",
                 initialPortionG = state.entry.portionG,
                 initialPortionLabel = state.entry.portionLabel,
                 onConfirm = { portionG, portionLabel ->
