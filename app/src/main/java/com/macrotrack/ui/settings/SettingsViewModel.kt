@@ -224,26 +224,50 @@ class SettingsViewModel @Inject constructor(
         persistDistribution()
     }
 
-    fun updateDistribution(sectionId: Long, macroType: MacroType, value: Float) {
+    fun updateDistribution(sectionId: Long, macroType: MacroType, rawValue: Float) {
+        val newValue = rawValue.coerceIn(0f, 100f)
         val current = _sectionDistribution.value.toMutableMap()
-        val macroMap = current.getOrPut(sectionId) { mutableMapOf() }.toMutableMap()
-        val oldValue = macroMap[macroType] ?: 0f
-        macroMap[macroType] = value.coerceIn(0f, 100f)
-        current[sectionId] = macroMap
-
         val sectionIds = _draftSections.value.map { it.id }
-        val otherIds = sectionIds.filter { it != sectionId }
-        if (otherIds.isNotEmpty()) {
-            val remaining = (100f - value) / (100f - oldValue).coerceAtLeast(1f)
-            for (otherId in otherIds) {
-                val otherMacros = current.getOrPut(otherId) { mutableMapOf() }.toMutableMap()
-                val otherOld = otherMacros[macroType] ?: 0f
-                otherMacros[macroType] = (otherOld * remaining).coerceIn(0f, 100f)
-                current[otherId] = otherMacros
+        val touchedMacros = current.getOrPut(sectionId) { mutableMapOf() }.toMutableMap()
+        val oldValue = touchedMacros[macroType] ?: 0f
+        touchedMacros[macroType] = newValue
+        current[sectionId] = touchedMacros
+
+        val othersTotal = sectionIds.filter { it != sectionId }
+            .sumOf { (current[it]?.get(macroType) ?: 0f).toDouble() }
+            .toFloat()
+        val totalAfter = newValue + othersTotal
+        if (totalAfter > 100f && sectionIds.size > 1) {
+            val targetOthersTotal = (100f - newValue).coerceAtLeast(0f)
+            val factor = if (othersTotal > 0f) targetOthersTotal / othersTotal else 0f
+            for (otherId in sectionIds.filter { it != sectionId }) {
+                val om = current.getOrPut(otherId) { mutableMapOf() }.toMutableMap()
+                val otherOld = om[macroType] ?: 0f
+                om[macroType] = (otherOld * factor).coerceIn(0f, 100f)
+                current[otherId] = om
             }
         }
         _sectionDistribution.value = current
+        normalizeResidual(macroType)
         persistDistribution()
+    }
+
+    private fun normalizeResidual(macroType: MacroType) {
+        val sectionIds = _draftSections.value.map { it.id }
+        val total = sectionIds.sumOf {
+            (_sectionDistribution.value[it]?.get(macroType) ?: 0f).toDouble()
+        }.toFloat()
+        if (total >= 99.95f && total < 100f) {
+            val residual = 100f - total
+            val target = sectionIds.minByOrNull {
+                _sectionDistribution.value[it]?.get(macroType) ?: 0f
+            } ?: return
+            val map = _sectionDistribution.value.toMutableMap()
+            val tm = (map[target] ?: emptyMap()).toMutableMap()
+            tm[macroType] = (tm[macroType] ?: 0f) + residual
+            map[target] = tm
+            _sectionDistribution.value = map
+        }
     }
 
     private fun Section.toDraftSection() = DraftSection(
