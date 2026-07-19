@@ -40,7 +40,8 @@ class LogViewModel @Inject constructor(
 
     private val _selectedDate = MutableStateFlow(LocalDate.now())
     private val _selectionMode = MutableStateFlow<SelectionMode>(SelectionMode.Off)
-    private val _expandedSections = MutableStateFlow<Set<Long>>(emptySet())
+    private val _collapsedSections = MutableStateFlow<Set<Long>>(emptySet())
+    private var needsCollapseSeed = true
 
     /** One-shot message surfaced to the UI after a reseed (or reseed failure). */
     private val _reseedMessage = MutableStateFlow<String?>(null)
@@ -58,9 +59,9 @@ class LogViewModel @Inject constructor(
         combine(
             getSettingsUseCase(),
             _selectionMode,
-            _expandedSections
-        ) { goals, selectionMode, expandedSections ->
-            Triple(goals, selectionMode, expandedSections)
+            _collapsedSections
+        ) { goals, selectionMode, _ ->
+            Triple(goals, selectionMode, Unit)
         }
     ) { data1, data2 ->
         val date = data1.first
@@ -68,7 +69,12 @@ class LogViewModel @Inject constructor(
         val sections = data1.third
         val goals = data2.first
         val selectionMode = data2.second
-        val expandedSections = data2.third
+
+        if (needsCollapseSeed) {
+            _collapsedSections.value = computeDefaultCollapsed(date, sections)
+            needsCollapseSeed = false
+        }
+        val collapsedSections = _collapsedSections.value
         
         // Calculate daily summary
         val totalLoggedMacros = entries.fold(Macros(0f, 0f, 0f, 0f)) { acc, entry -> acc + entry.macros }
@@ -86,7 +92,7 @@ class LogViewModel @Inject constructor(
                 section = section,
                 entries = sectionEntries.sortedBy { it.sortOrder },
                 totalMacros = sectionMacros,
-                isExpanded = !expandedSections.contains(section.id) // Default is true, so if in set, it's collapsed
+                isExpanded = !collapsedSections.contains(section.id)
             )
         }.sortedBy { it.section.sortOrder }
 
@@ -106,18 +112,18 @@ class LogViewModel @Inject constructor(
 
     fun onDateSelected(date: LocalDate) {
         _selectedDate.value = date
-        // Optional: Reset selection mode when changing date
         _selectionMode.value = SelectionMode.Off
+        needsCollapseSeed = true
     }
 
     fun toggleSectionExpanded(sectionId: Long) {
-        val current = _expandedSections.value.toMutableSet()
+        val current = _collapsedSections.value.toMutableSet()
         if (current.contains(sectionId)) {
             current.remove(sectionId)
         } else {
             current.add(sectionId)
         }
-        _expandedSections.value = current
+        _collapsedSections.value = current
     }
 
     fun toggleSelectionMode(entryId: Long) {
@@ -198,6 +204,26 @@ class LogViewModel @Inject constructor(
     fun cancelChoosingDestination() {
         val mode = _selectionMode.value as? SelectionMode.ChoosingDestination ?: return
         _selectionMode.value = SelectionMode.Selecting(mode.selectedIds)
+    }
+
+    private fun computeDefaultCollapsed(
+        date: LocalDate,
+        sections: List<Section>,
+    ): Set<Long> {
+        if (sections.isEmpty()) return emptySet()
+        return if (date == LocalDate.now()) {
+            val timeWindowId = defaultTimeWindowSection(sections)
+            sections.map { it.id }.filter { it != timeWindowId }.toSet()
+        } else {
+            sections.map { it.id }.toSet()
+        }
+    }
+
+    private fun defaultTimeWindowSection(sections: List<Section>): Long {
+        val now = java.time.LocalTime.now()
+        val sorted = sections.sortedBy { it.timeOfDay }
+        val past = sorted.filter { !it.timeOfDay.isAfter(now) }
+        return (past.lastOrNull() ?: sorted.last()).id
     }
 
     private fun buildWeekDates(currentDate: LocalDate): List<WeekDay> {
