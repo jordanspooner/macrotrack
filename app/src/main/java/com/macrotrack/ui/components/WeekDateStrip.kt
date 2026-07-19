@@ -69,16 +69,15 @@ fun WeekDateStrip(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = Spacing.xs),
-                horizontalArrangement = Arrangement.SpaceEvenly,
             ) {
-                weekDays.forEach { DayItem(it, onClick = { onDateSelected(it) }) }
+                weekDays.forEach { DayItem(it, onClick = { onDateSelected(it) }, modifier = Modifier.weight(1f)) }
             }
         }
     }
 }
 
 @Composable
-private fun DayItem(day: WeekDay, onClick: () -> Unit) {
+private fun DayItem(day: WeekDay, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val containerColor by animateColorAsState(
         targetValue = if (day.isSelected) brandPrimary().copy(alpha = 0.16f) else Color.Transparent,
         animationSpec = tween(MotionTokens.medium),
@@ -95,7 +94,7 @@ private fun DayItem(day: WeekDay, onClick: () -> Unit) {
     Surface(
         color = containerColor,
         shape = MacroTrackPillShape,
-        modifier = Modifier
+        modifier = modifier
             .scale(scale)
             .clip(MacroTrackPillShape)
             .clickable(onClick = onClick)
