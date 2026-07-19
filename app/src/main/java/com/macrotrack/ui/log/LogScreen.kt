@@ -184,7 +184,7 @@ fun LogScreen(
                                     modifier = Modifier.padding(Spacing.xxl)
                                 ) {
                                     Surface(
-                                        color = brandPrimary().copy(alpha = 0.2f),
+                                        color = restingSurfaceColor(),
                                         shape = CircleShape,
                                         modifier = Modifier.size(72.dp)
                                     ) {
@@ -192,7 +192,7 @@ fun LogScreen(
                                             Icon(
                                                 Icons.Default.RestaurantMenu,
                                                 contentDescription = null,
-                                                tint = brandPrimary(),
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                                 modifier = Modifier.size(32.dp)
                                             )
                                         }
