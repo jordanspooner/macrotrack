@@ -1,26 +1,34 @@
 package com.macrotrack.ui.settings
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowDownward
-import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DragHandle
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -32,6 +40,10 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -40,19 +52,31 @@ import androidx.compose.material3.TimePickerState
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.macrotrack.ui.components.SaveButton
+import com.macrotrack.ui.theme.MacroTrackPillShape
+import com.macrotrack.ui.theme.Spacing
+import com.macrotrack.ui.theme.brandPrimary
+import com.macrotrack.ui.theme.macroCaloriesColor
+import com.macrotrack.ui.theme.macroCarbsColor
+import com.macrotrack.ui.theme.macroFatColor
+import com.macrotrack.ui.theme.macroProteinColor
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -61,24 +85,42 @@ fun SettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val listState = rememberLazyListState()
+    val snackbarHostState = remember { SnackbarHostState() }
+    var showDiscard by remember { mutableStateOf(false) }
+
+    LaunchedEffect(uiState.goalsSaved) {
+        if (uiState.goalsSaved) snackbarHostState.showSnackbar("Goals saved")
+    }
+    LaunchedEffect(uiState.sectionsSaved) {
+        if (uiState.sectionsSaved) snackbarHostState.showSnackbar("Sections saved")
+    }
+
+    BackHandler(enabled = uiState.hasUnsavedChanges) { showDiscard = true }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Settings") },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(
+                        onClick = {
+                            if (uiState.hasUnsavedChanges) showDiscard = true else onBack()
+                        },
+                    ) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
                     }
                 },
             )
         },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { paddingValues ->
         LazyColumn(
+            state = listState,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(16.dp),
+                .padding(horizontal = Spacing.lg, vertical = Spacing.lg),
         ) {
             // ----- Block 1: Daily Goals -----
             item {
@@ -86,43 +128,7 @@ fun SettingsScreen(
                     text = "Daily Goals",
                     style = MaterialTheme.typography.titleMedium,
                 )
-                Spacer(Modifier.height(8.dp))
-            }
-
-            item {
-                OutlinedTextField(
-                    value = uiState.draftGoals.proteinG.toString(),
-                    onValueChange = { viewModel.updateDraftGoalProtein(it) },
-                    label = { Text("Protein (g)") },
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Number,
-                    ),
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                )
-                Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = uiState.draftGoals.carbsG.toString(),
-                    onValueChange = { viewModel.updateDraftGoalCarbs(it) },
-                    label = { Text("Carbs (g)") },
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Number,
-                    ),
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                )
-                Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = uiState.draftGoals.fatG.toString(),
-                    onValueChange = { viewModel.updateDraftGoalFat(it) },
-                    label = { Text("Fat (g)") },
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Number,
-                    ),
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                )
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(Spacing.sm))
             }
 
             item {
@@ -130,37 +136,117 @@ fun SettingsScreen(
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.surfaceVariant,
                     ),
+                    shape = MaterialTheme.shapes.medium,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text("Total kcal: ${uiState.draftGoals.kcal}")
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            "Protein: ${uiState.draftGoals.proteinPercent.toInt()}% | " +
-                                "Carbs: ${uiState.draftGoals.carbsPercent.toInt()}% | " +
-                                "Fat: ${uiState.draftGoals.fatPercent.toInt()}%",
+                    Column(modifier = Modifier.padding(Spacing.lg)) {
+                        GoalField(
+                            value = uiState.draftGoals.proteinG.toString(),
+                            onValueChange = { viewModel.updateDraftGoalProtein(it) },
+                            label = "Protein (g)",
+                            dotColor = macroProteinColor(),
+                        )
+                        Spacer(Modifier.height(Spacing.sm))
+                        GoalField(
+                            value = uiState.draftGoals.carbsG.toString(),
+                            onValueChange = { viewModel.updateDraftGoalCarbs(it) },
+                            label = "Carbs (g)",
+                            dotColor = macroCarbsColor(),
+                        )
+                        Spacer(Modifier.height(Spacing.sm))
+                        GoalField(
+                            value = uiState.draftGoals.fatG.toString(),
+                            onValueChange = { viewModel.updateDraftGoalFat(it) },
+                            label = "Fat (g)",
+                            dotColor = macroFatColor(),
                         )
                     }
                 }
-                Spacer(Modifier.height(8.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Button(onClick = { viewModel.saveGoals() }) {
-                        Text("Save Goals")
-                    }
-                    if (uiState.goalsSaved) {
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            text = "Saved!",
-                            color = Color.Green,
-                        )
-                    }
-                }
+                Spacer(Modifier.height(Spacing.sm))
             }
 
             item {
-                Spacer(Modifier.height(16.dp))
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    ),
+                    shape = MaterialTheme.shapes.medium,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Column(modifier = Modifier.padding(Spacing.lg)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(8.dp)
+                                    .background(
+                                        MaterialTheme.colorScheme.surface,
+                                        RoundedCornerShape(4.dp),
+                                    ),
+                            ) {
+                                Row(Modifier.fillMaxSize()) {
+                                    Box(
+                                        Modifier
+                                            .weight(uiState.draftGoals.proteinPercent)
+                                            .fillMaxHeight()
+                                            .background(macroProteinColor()),
+                                    )
+                                    Box(
+                                        Modifier
+                                            .weight(uiState.draftGoals.carbsPercent)
+                                            .fillMaxHeight()
+                                            .background(macroCarbsColor()),
+                                    )
+                                    Box(
+                                        Modifier
+                                            .weight(uiState.draftGoals.fatPercent)
+                                            .fillMaxHeight()
+                                            .background(macroFatColor()),
+                                    )
+                                }
+                            }
+                            Spacer(Modifier.width(Spacing.md))
+                            Text(
+                                text = "${uiState.draftGoals.kcal} kcal",
+                                style = MaterialTheme.typography.titleLarge,
+                                color = macroCaloriesColor(),
+                            )
+                        }
+                        Spacer(Modifier.height(Spacing.sm))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "P ${uiState.draftGoals.proteinPercent.toInt()}%",
+                                color = macroProteinColor(),
+                                style = MaterialTheme.typography.labelMedium,
+                            )
+                            Text(
+                                text = "  ·  C ${uiState.draftGoals.carbsPercent.toInt()}%",
+                                color = macroCarbsColor(),
+                                style = MaterialTheme.typography.labelMedium,
+                            )
+                            Text(
+                                text = "  ·  F ${uiState.draftGoals.fatPercent.toInt()}%",
+                                color = macroFatColor(),
+                                style = MaterialTheme.typography.labelMedium,
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(Spacing.sm))
+                SaveButton(
+                    hasChanges = uiState.hasUnsavedChanges,
+                    label = "Save goals",
+                    onClick = { viewModel.saveGoals() },
+                )
+            }
+
+            item {
+                Spacer(Modifier.height(Spacing.lg))
                 HorizontalDivider()
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(Spacing.lg))
             }
 
             // ----- Block 2: Meal Sections -----
@@ -169,16 +255,19 @@ fun SettingsScreen(
                     text = "Meal Sections",
                     style = MaterialTheme.typography.titleMedium,
                 )
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(Spacing.sm))
             }
 
             itemsIndexed(uiState.draftSections) { index, ds ->
                 key(ds.id) {
+                    var dragOffset by remember { mutableStateOf(0f) }
                     val showTimePicker = remember { mutableStateOf(false) }
+                    val showDelete = remember { mutableStateOf(false) }
                     val timePickerState = rememberTimePickerState(
                         initialHour = ds.timeOfDay.hour,
                         initialMinute = ds.timeOfDay.minute,
                     )
+
                     if (showTimePicker.value) {
                         TimePickerDialog(
                             onDismiss = { showTimePicker.value = false },
@@ -186,23 +275,58 @@ fun SettingsScreen(
                             state = timePickerState,
                         )
                     }
+                    if (showDelete.value) {
+                        AlertDialog(
+                            onDismissRequest = { showDelete.value = false },
+                            title = { Text("Delete section?") },
+                            text = { Text("Delete '${ds.name}'? Its logged meals move to the section above.") },
+                            confirmButton = {
+                                TextButton(
+                                    onClick = {
+                                        showDelete.value = false
+                                        viewModel.removeDraftSection(index)
+                                    },
+                                ) { Text("Delete") }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { showDelete.value = false }) { Text("Cancel") }
+                            },
+                        )
+                    }
 
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = Spacing.xs),
                     ) {
-                        IconButton(
-                            onClick = { viewModel.moveDraftSectionUp(index) },
-                            enabled = index != 0,
-                        ) {
-                            Icon(Icons.Default.ArrowUpward, "Move up")
-                        }
-                        IconButton(
-                            onClick = { viewModel.moveDraftSectionDown(index) },
-                            enabled = index != uiState.draftSections.lastIndex,
-                        ) {
-                            Icon(Icons.Default.ArrowDownward, "Move down")
-                        }
+                        Icon(
+                            imageVector = Icons.Filled.DragHandle,
+                            contentDescription = "Drag to reorder",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier
+                                .size(24.dp)
+                                .pointerInput(ds.id) {
+                                    detectDragGesturesAfterLongPress(
+                                        onDragStart = { dragOffset = 0f },
+                                        onDrag = { change, dragAmount ->
+                                            change.consume()
+                                            dragOffset += dragAmount.y
+                                            val itemHeight = listState.layoutInfo.visibleItemsInfo
+                                                .firstOrNull()?.size?.toFloat() ?: 64f
+                                            val steps = (dragOffset / itemHeight).roundToInt()
+                                            if (steps != 0) {
+                                                val sections = viewModel.uiState.value.draftSections
+                                                val from = sections.indexOfFirst { it.id == ds.id }
+                                                if (from < 0) return@detectDragGesturesAfterLongPress
+                                                val to = (from + steps).coerceIn(0, sections.lastIndex)
+                                                viewModel.reorderSections(from, to)
+                                                dragOffset -= steps * itemHeight
+                                            }
+                                        },
+                                    )
+                                },
+                        )
                         OutlinedTextField(
                             value = ds.name,
                             onValueChange = { viewModel.updateDraftSectionName(index, it) },
@@ -210,48 +334,86 @@ fun SettingsScreen(
                             modifier = Modifier.weight(1f),
                             singleLine = true,
                         )
-                        TextButton(
-                            onClick = { showTimePicker.value = true },
+                        Spacer(Modifier.width(Spacing.sm))
+                        Surface(
+                            shape = MacroTrackPillShape,
+                            color = MaterialTheme.colorScheme.surfaceVariant,
+                            modifier = Modifier
+                                .clickable { showTimePicker.value = true }
+                                .padding(Spacing.xs),
                         ) {
-                            Text(ds.timeOfDay.format(DateTimeFormatter.ofPattern("HH:mm")))
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(
+                                    horizontal = Spacing.sm,
+                                    vertical = Spacing.xs,
+                                ),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Schedule,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(16.dp),
+                                )
+                                Spacer(Modifier.width(Spacing.xs))
+                                Text(
+                                    text = ds.timeOfDay.format(DateTimeFormatter.ofPattern("HH:mm")),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                         }
-                        IconButton(
-                            onClick = { viewModel.removeDraftSection(index) },
-                        ) {
-                            Icon(Icons.Default.Delete, "Delete section")
+                        IconButton(onClick = { showDelete.value = true }) {
+                            Icon(Icons.Filled.Delete, "Delete section")
                         }
                     }
                 }
             }
 
             item {
-                Spacer(Modifier.height(8.dp))
-                OutlinedButton(onClick = { viewModel.addDraftSection("New Section") }) {
-                    Text("Add Section")
+                Spacer(Modifier.height(Spacing.md))
+                OutlinedButton(
+                    onClick = { viewModel.addDraftSection("New Section") },
+                    shape = MacroTrackPillShape,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("Add section")
                 }
-                Spacer(Modifier.height(8.dp))
-                TextButton(onClick = { viewModel.resetSectionsToDefaults() }) {
-                    Text("Reset to Defaults")
+                Spacer(Modifier.height(Spacing.sm))
+                val showReset = remember { mutableStateOf(false) }
+                if (showReset.value) {
+                    AlertDialog(
+                        onDismissRequest = { showReset.value = false },
+                        title = { Text("Reset to defaults?") },
+                        text = { Text("This replaces your sections with the default set.") },
+                        confirmButton = {
+                            TextButton(
+                                onClick = {
+                                    showReset.value = false
+                                    viewModel.resetSectionsToDefaults()
+                                },
+                            ) { Text("Reset") }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showReset.value = false }) { Text("Cancel") }
+                        },
+                    )
                 }
-                Spacer(Modifier.height(8.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Button(onClick = { viewModel.saveSections() }) {
-                        Text("Save Sections")
-                    }
-                    if (uiState.sectionsSaved) {
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            text = "Saved!",
-                            color = Color.Green,
-                        )
-                    }
+                TextButton(onClick = { showReset.value = true }) {
+                    Text("Reset to defaults")
                 }
+                Spacer(Modifier.height(Spacing.md))
+                SaveButton(
+                    hasChanges = uiState.hasUnsavedChanges,
+                    label = "Save sections",
+                    onClick = { viewModel.saveSections() },
+                )
             }
 
             item {
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(Spacing.lg))
                 HorizontalDivider()
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(Spacing.lg))
             }
 
             // ----- Block 3: Section Distribution -----
@@ -273,53 +435,165 @@ fun SettingsScreen(
 
             if (uiState.sectionGoalsEnabled) {
                 val macroConfigs = listOf(
-                    Triple(MacroType.PROTEIN, "Protein distribution", uiState.draftGoals.proteinG),
-                    Triple(MacroType.CARBS, "Carbs distribution", uiState.draftGoals.carbsG),
-                    Triple(MacroType.FAT, "Fat distribution", uiState.draftGoals.fatG),
+                    Triple(MacroType.PROTEIN, "Protein", uiState.draftGoals.proteinG),
+                    Triple(MacroType.CARBS, "Carbs", uiState.draftGoals.carbsG),
+                    Triple(MacroType.FAT, "Fat", uiState.draftGoals.fatG),
                 )
-                items(macroConfigs) { (macroType, header, goalsG) ->
-                    Spacer(Modifier.height(16.dp))
-                    Text(
-                        text = header,
-                        style = MaterialTheme.typography.titleSmall,
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    uiState.draftSections.forEach { ds ->
-                        val percentage =
-                            uiState.sectionDistribution[ds.id]?.get(macroType) ?: 0f
+                items(macroConfigs) { (macroType, name, goalsG) ->
+                    val macroColor = when (macroType) {
+                        MacroType.PROTEIN -> macroProteinColor()
+                        MacroType.CARBS -> macroCarbsColor()
+                        MacroType.FAT -> macroFatColor()
+                    }
+                    Spacer(Modifier.height(Spacing.lg))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        MacroDot(macroColor)
+                        Spacer(Modifier.width(Spacing.sm))
+                        Text(
+                            text = name,
+                            style = MaterialTheme.typography.titleSmall,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Text(
+                            text = "$goalsG g",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Spacer(Modifier.height(Spacing.sm))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(8.dp)
+                            .background(
+                                MaterialTheme.colorScheme.surfaceVariant,
+                                RoundedCornerShape(4.dp),
+                            ),
+                    ) {
+                        Row(Modifier.fillMaxSize()) {
+                            uiState.draftSections.forEachIndexed { i, section ->
+                                val pct = uiState.sectionDistribution[section.id]?.get(macroType) ?: 0f
+                                if (pct > 0f) {
+                                    Box(
+                                        Modifier
+                                            .weight(pct)
+                                            .fillMaxHeight()
+                                            .background(
+                                                macroColor.copy(
+                                                    alpha = (1f - i * 0.18f).coerceIn(0.2f, 1f),
+                                                ),
+                                            ),
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(Spacing.sm))
+                    uiState.draftSections.forEach { section ->
+                        val percentage = uiState.sectionDistribution[section.id]?.get(macroType) ?: 0f
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.fillMaxWidth(),
                         ) {
                             Text(
-                                text = ds.name,
+                                text = section.name,
                                 modifier = Modifier.width(96.dp),
+                                style = MaterialTheme.typography.labelMedium,
                             )
                             Slider(
                                 value = percentage,
-                                onValueChange = {
-                                    viewModel.updateDistribution(ds.id, macroType, it)
-                                },
+                                onValueChange = { viewModel.updateDistribution(section.id, macroType, it) },
                                 valueRange = 0f..100f,
                                 modifier = Modifier.weight(1f),
+                                colors = SliderDefaults.colors(
+                                    thumbColor = macroColor,
+                                    activeTrackColor = macroColor,
+                                    inactiveTrackColor = macroColor.copy(alpha = 0.24f),
+                                ),
                             )
                             Text("${percentage.toInt()}%")
-                            Spacer(Modifier.width(4.dp))
+                            Spacer(Modifier.width(Spacing.xs))
                             Text("${(percentage / 100 * goalsG).toInt()}g")
                         }
                     }
                     val totalPercent = uiState.draftSections.sumOf {
                         (uiState.sectionDistribution[it.id]?.get(macroType) ?: 0f).toDouble()
                     }.toFloat()
-                    Spacer(Modifier.height(4.dp))
+                    if (totalPercent.toInt() != 100) {
+                        Spacer(Modifier.height(Spacing.xs))
+                        Text(
+                            text = "Total: ${totalPercent.toInt()}%",
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.labelSmall,
+                        )
+                        Text(
+                            text = "Adjust so totals equal 100%.",
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.labelSmall,
+                        )
+                    }
+                }
+            } else {
+                item {
+                    Spacer(Modifier.height(Spacing.md))
                     Text(
-                        text = "Total: ${totalPercent.toInt()}%",
-                        color = if (totalPercent.toInt() == 100) Color.Green else Color.Red,
+                        text = "Goals apply per section (manual logging recommended)",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
         }
     }
+
+    if (showDiscard) {
+        AlertDialog(
+            onDismissRequest = { showDiscard = false },
+            title = { Text("Discard changes?") },
+            text = { Text("You have unsaved changes. Discard them and leave?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDiscard = false
+                        onBack()
+                    },
+                ) { Text("Discard") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDiscard = false }) { Text("Cancel") }
+            },
+        )
+    }
+}
+
+@Composable
+private fun GoalField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    dotColor: Color,
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label) },
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        leadingIcon = { MacroDot(dotColor) },
+        modifier = Modifier.fillMaxWidth(),
+        singleLine = true,
+    )
+}
+
+@Composable
+private fun MacroDot(color: Color, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .size(8.dp)
+            .background(color, CircleShape),
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

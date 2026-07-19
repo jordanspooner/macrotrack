@@ -26,4 +26,5 @@ data class SettingsUiState(
     val sectionGoalsEnabled: Boolean = false,
     val sectionDistribution: Map<Long, Map<MacroType, Float>> = emptyMap(),
     val distributionDirty: Boolean = false,
+    val hasUnsavedChanges: Boolean = false,
 )

@@ -14,6 +14,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.stateIn
@@ -40,6 +41,8 @@ class SettingsViewModel @Inject constructor(
     private val _sectionGoalsEnabled = MutableStateFlow(false)
     private val _sectionDistribution = MutableStateFlow<Map<Long, Map<MacroType, Float>>>(emptyMap())
     private val _distributionDirty = MutableStateFlow(false)
+    private val _hasUnsavedChanges = MutableStateFlow(false)
+    val hasUnsavedChanges: StateFlow<Boolean> = _hasUnsavedChanges.asStateFlow()
 
     init {
         viewModelScope.launch {
@@ -77,10 +80,10 @@ class SettingsViewModel @Inject constructor(
         combine(getSectionsUseCase(), _draftSections, _isSavingSections, _sectionsSaved) { sections, draft, saving, saved ->
             Quad(sections, draft, saving, saved)
         },
-        combine(_sectionGoalsEnabled, _sectionDistribution, _distributionDirty) { enabled, distribution, dirty ->
-            Triple(enabled, distribution, dirty)
+        combine(_sectionGoalsEnabled, _sectionDistribution, _distributionDirty, _hasUnsavedChanges) { enabled, distribution, dirty, unsaved ->
+            Quad(enabled, distribution, dirty, unsaved)
         }
-    ) { goalsQuad, sectionsQuad, distTriple ->
+    ) { goalsQuad, sectionsQuad, distQuad ->
         SettingsUiState(
             dailyGoals = goalsQuad.first,
             draftGoals = goalsQuad.second,
@@ -90,9 +93,10 @@ class SettingsViewModel @Inject constructor(
             draftSections = sectionsQuad.second,
             isSavingSections = sectionsQuad.third,
             sectionsSaved = sectionsQuad.fourth,
-            sectionGoalsEnabled = distTriple.first,
-            sectionDistribution = distTriple.second,
-            distributionDirty = distTriple.third,
+            sectionGoalsEnabled = distQuad.first,
+            sectionDistribution = distQuad.second,
+            distributionDirty = distQuad.third,
+            hasUnsavedChanges = distQuad.fourth,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -105,16 +109,19 @@ class SettingsViewModel @Inject constructor(
     fun updateDraftGoalProtein(value: String) {
         val g = value.toIntOrNull() ?: return
         _draftGoals.value = _draftGoals.value.copy(proteinG = g)
+        _hasUnsavedChanges.value = true
     }
 
     fun updateDraftGoalCarbs(value: String) {
         val g = value.toIntOrNull() ?: return
         _draftGoals.value = _draftGoals.value.copy(carbsG = g)
+        _hasUnsavedChanges.value = true
     }
 
     fun updateDraftGoalFat(value: String) {
         val g = value.toIntOrNull() ?: return
         _draftGoals.value = _draftGoals.value.copy(fatG = g)
+        _hasUnsavedChanges.value = true
     }
 
     fun saveGoals() {
@@ -123,6 +130,7 @@ class SettingsViewModel @Inject constructor(
             updateDailyGoalsUseCase(_draftGoals.value)
             _isSavingGoals.value = false
             _goalsSaved.value = true
+            _hasUnsavedChanges.value = false
             delay(2000)
             _goalsSaved.value = false
         }
@@ -133,6 +141,7 @@ class SettingsViewModel @Inject constructor(
         if (index in list.indices) {
             list[index] = list[index].copy(name = name)
             _draftSections.value = list
+            _hasUnsavedChanges.value = true
         }
     }
 
@@ -141,6 +150,7 @@ class SettingsViewModel @Inject constructor(
         if (index in list.indices) {
             list[index] = list[index].copy(timeOfDay = time)
             _draftSections.value = list
+            _hasUnsavedChanges.value = true
         }
     }
 
@@ -149,6 +159,7 @@ class SettingsViewModel @Inject constructor(
         if (index in list.indices) {
             list.removeAt(index)
             _draftSections.value = list
+            _hasUnsavedChanges.value = true
         }
     }
 
@@ -163,6 +174,7 @@ class SettingsViewModel @Inject constructor(
             isNew = true
         )
         _draftSections.value = _draftSections.value + newSection
+        _hasUnsavedChanges.value = true
     }
 
     fun moveDraftSectionUp(index: Int) {
@@ -171,6 +183,7 @@ class SettingsViewModel @Inject constructor(
             val item = list.removeAt(index)
             list.add(index - 1, item)
             _draftSections.value = list.mapIndexed { i, ds -> ds.copy(sortOrder = i) }
+            _hasUnsavedChanges.value = true
         }
     }
 
@@ -180,6 +193,17 @@ class SettingsViewModel @Inject constructor(
             val item = list.removeAt(index)
             list.add(index + 1, item)
             _draftSections.value = list.mapIndexed { i, ds -> ds.copy(sortOrder = i) }
+            _hasUnsavedChanges.value = true
+        }
+    }
+
+    fun reorderSections(fromIndex: Int, toIndex: Int) {
+        val list = _draftSections.value.toMutableList()
+        if (fromIndex in list.indices && toIndex in list.indices && fromIndex != toIndex) {
+            val item = list.removeAt(fromIndex)
+            list.add(toIndex, item)
+            _draftSections.value = list.mapIndexed { i, ds -> ds.copy(sortOrder = i) }
+            _hasUnsavedChanges.value = true
         }
     }
 
@@ -190,6 +214,7 @@ class SettingsViewModel @Inject constructor(
             DraftSection(id = 3, name = "Dinner", timeOfDay = LocalTime.of(19, 0), sortOrder = 2),
             DraftSection(id = 4, name = "Snacks", timeOfDay = LocalTime.of(15, 0), sortOrder = 3),
         )
+        _hasUnsavedChanges.value = true
     }
 
     fun saveSections() {
@@ -206,6 +231,7 @@ class SettingsViewModel @Inject constructor(
             updateSectionsUseCase(sections)
             _isSavingSections.value = false
             _sectionsSaved.value = true
+            _hasUnsavedChanges.value = false
             delay(2000)
             _sectionsSaved.value = false
         }
@@ -239,6 +265,7 @@ class SettingsViewModel @Inject constructor(
         }
         _sectionDistribution.value = current
         _distributionDirty.value = true
+        _hasUnsavedChanges.value = true
     }
 
     private fun Section.toDraftSection() = DraftSection(
