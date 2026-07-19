@@ -76,7 +76,17 @@ class AddViewModel @Inject constructor(
         runCatching { LocalDate.parse(initialDateIso) }.getOrDefault(LocalDate.now())
     )
     private val _targetSectionId = kotlinx.coroutines.flow.MutableStateFlow(initialSectionId)
-    private val _mode = kotlinx.coroutines.flow.MutableStateFlow(AddMode.SEARCH)
+    private val initialMode: AddMode = savedStateHandle.get<String>("mode")?.let { modeStr ->
+        when (modeStr.lowercase()) {
+            "search"  -> AddMode.SEARCH
+            "barcode" -> AddMode.BARCODE
+            "label"   -> AddMode.LABEL
+            "quick"   -> AddMode.QUICK_ADD
+            else      -> null
+        }
+    } ?: AddMode.SEARCH
+
+    private val _mode = kotlinx.coroutines.flow.MutableStateFlow(initialMode)
     private val _query = kotlinx.coroutines.flow.MutableStateFlow("")
     private val _pendingFood = kotlinx.coroutines.flow.MutableStateFlow<FoodItem?>(null)
     private val _quickAddDraft = kotlinx.coroutines.flow.MutableStateFlow(QuickAddDraft())
@@ -125,7 +135,7 @@ class AddViewModel @Inject constructor(
         dateIso = initialDateIso,
         sections = emptyList(),
         targetSectionId = initialSectionId,
-        mode = AddMode.SEARCH,
+        mode = initialMode,
         query = "",
         results = emptyList(),
         pendingFood = null,
