@@ -1,8 +1,5 @@
 package com.macrotrack.ui.components
 
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -13,7 +10,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -25,7 +21,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.macrotrack.domain.model.DailySummary
 import com.macrotrack.ui.theme.MacroTrackPillShape
-import com.macrotrack.ui.theme.MotionTokens
 import com.macrotrack.ui.theme.Spacing
 import com.macrotrack.ui.theme.macroCaloriesColor
 import com.macrotrack.ui.theme.macroCarbsColor
@@ -42,15 +37,9 @@ fun MacroSummaryCard(
 ) {
     if (summary == null) return
 
+    val trackColor = MaterialTheme.colorScheme.surfaceVariant
     val kcalColor = macroCaloriesColor()
     val overColor = overageColor()
-    val trackColor = MaterialTheme.colorScheme.surfaceVariant
-    val progressColor = if (summary.kcalPercent > 1f) overColor else kcalColor
-
-    val kcalSweep by animateFloatAsState(
-        targetValue = min(summary.kcalPercent, 1f) * 270f,
-        animationSpec = tween(durationMillis = MotionTokens.slow, easing = FastOutSlowInEasing)
-    )
 
     Card(
         modifier = modifier
@@ -92,14 +81,26 @@ fun MacroSummaryCard(
                         style = Stroke(width = trackStroke, cap = StrokeCap.Round)
                     )
                     drawArc(
-                        color = progressColor,
+                        color = kcalColor,
                         startAngle = 135f,
-                        sweepAngle = kcalSweep,
+                        sweepAngle = min(summary.kcalPercent, 1f) * 270f,
                         useCenter = false,
                         topLeft = topLeft,
                         size = arcSize,
                         style = Stroke(width = stroke, cap = StrokeCap.Round)
                     )
+                    if (summary.kcalPercent > 1f) {
+                        val overageSweep = min(summary.kcalPercent - 1f, 0.5f) * 270f
+                        drawArc(
+                            color = overColor,
+                            startAngle = 135f + 270f,
+                            sweepAngle = overageSweep,
+                            useCenter = false,
+                            topLeft = topLeft,
+                            size = arcSize,
+                            style = Stroke(width = stroke, cap = StrokeCap.Round)
+                        )
+                    }
                 }
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
@@ -162,8 +163,12 @@ private fun MacroRow(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(8.dp).background(resolvedColor, CircleShape))
             Spacer(Modifier.width(Spacing.sm))
-            Text(label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Medium)
-            Spacer(Modifier.weight(1f))
+            Text(
+                label,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.weight(1f),
+            )
             Text(
                 "${logged.roundToInt()} / ${goal}g",
                 style = MaterialTheme.typography.labelLarge,
@@ -173,13 +178,19 @@ private fun MacroRow(
             Surface(
                 color = resolvedColor.copy(alpha = 0.15f),
                 shape = MacroTrackPillShape,
-                modifier = Modifier.padding(horizontal = Spacing.xs),
+                modifier = Modifier
+                    .widthIn(min = 44.dp)
+                    .padding(horizontal = Spacing.xs),
             ) {
                 Text(
                     "${(percent * 100).roundToInt()}%",
                     style = MaterialTheme.typography.labelSmall,
                     color = resolvedColor,
-                    modifier = Modifier.padding(horizontal = Spacing.sm, vertical = (Spacing.xs / 2)),
+                    maxLines = 1,
+                    softWrap = false,
+                    modifier = Modifier
+                        .padding(horizontal = Spacing.sm, vertical = (Spacing.xs / 2))
+                        .align(Alignment.CenterVertically),
                 )
             }
         }
