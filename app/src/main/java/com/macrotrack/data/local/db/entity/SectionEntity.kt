@@ -8,5 +8,4 @@ data class SectionEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val name: String,
     val timeOfDay: String, // HH:mm format
-    val sortOrder: Int,
 )

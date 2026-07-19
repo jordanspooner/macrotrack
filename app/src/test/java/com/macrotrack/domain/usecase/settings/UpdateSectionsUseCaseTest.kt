@@ -18,8 +18,8 @@ class UpdateSectionsUseCaseTest {
     @Test
     fun `persists section list to repository`() = runTest {
         val sections = listOf(
-            Section(id = 1, name = "Breakfast", timeOfDay = LocalTime.of(7, 30), sortOrder = 0),
-            Section(id = 2, name = "Lunch", timeOfDay = LocalTime.of(12, 30), sortOrder = 1),
+            Section(id = 1, name = "Breakfast", timeOfDay = LocalTime.of(7, 30)),
+            Section(id = 2, name = "Lunch", timeOfDay = LocalTime.of(12, 30)),
         )
         useCase(sections)
         coVerify(exactly = 1) { sectionRepository.updateAll(sections) }
@@ -28,8 +28,8 @@ class UpdateSectionsUseCaseTest {
     @Test
     fun `order is preserved`() = runTest {
         val sections = listOf(
-            Section(id = 1, name = "A", timeOfDay = LocalTime.of(8, 0), sortOrder = 0),
-            Section(id = 2, name = "B", timeOfDay = LocalTime.of(9, 0), sortOrder = 1),
+            Section(id = 1, name = "A", timeOfDay = LocalTime.of(8, 0)),
+            Section(id = 2, name = "B", timeOfDay = LocalTime.of(9, 0)),
         )
         useCase(sections)
         coVerify(exactly = 1) { sectionRepository.updateAll(withArg { assertEquals(2, it.size) }) }

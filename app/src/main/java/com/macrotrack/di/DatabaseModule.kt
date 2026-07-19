@@ -34,6 +34,7 @@ object DatabaseModule {
         // index in sync). A plain `createFromAsset` is intentionally avoided so
         // the bundled file does not need to carry Room's schema identity hash.
         // .createFromAsset("databases/food_database.db")
+        .fallbackToDestructiveMigration(dropAllTables = true)
         .build()
     }
 
