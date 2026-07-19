@@ -38,18 +38,12 @@ fun WeekDateStrip(
     onDateSelected: (WeekDay) -> Unit,
     onOpenCalendar: () -> Unit,
     modifier: Modifier = Modifier,
-    onSwipeLeft: () -> Unit = {},
-    onSwipeRight: () -> Unit = {},
 ) {
     Surface(
         color = restingSurfaceColor(),
         shape = MacroTrackShapes.large,
         modifier = modifier
-            .padding(horizontal = Spacing.lg, vertical = Spacing.sm)
-            .horizontalSwipeNav(
-                onSwipeLeft = onSwipeLeft,
-                onSwipeRight = onSwipeRight,
-            ),
+            .padding(horizontal = Spacing.lg, vertical = Spacing.sm),
     ) {
         Column(modifier = Modifier.padding(Spacing.md)) {
             Row(

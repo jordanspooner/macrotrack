@@ -43,8 +43,8 @@ class LogViewModel @Inject constructor(
 
     private val _selectedDate = MutableStateFlow(LocalDate.now())
     private val _selectionMode = MutableStateFlow<SelectionMode>(SelectionMode.Off)
-    private val _collapsedSections = MutableStateFlow<Set<Long>>(emptySet())
-    private var needsCollapseSeed = true
+    private val _collapsedSections = MutableStateFlow<Map<LocalDate, Set<Long>>>(emptyMap())
+    private val seededDates = mutableSetOf<LocalDate>()
 
     private val _reseedMessage = MutableStateFlow<String?>(null)
     val reseedMessage: StateFlow<String?> = _reseedMessage
@@ -53,61 +53,65 @@ class LogViewModel @Inject constructor(
     val uiState: StateFlow<LogUiState> = combine(
         combine(
             _selectedDate,
-            _selectedDate.flatMapLatest { date -> getDailyLogUseCase(date) },
+            _selectedDate.flatMapLatest { date ->
+                combine(
+                    getDailyLogUseCase(date.minusDays(1)),
+                    getDailyLogUseCase(date),
+                    getDailyLogUseCase(date.plusDays(1)),
+                ) { prev, curr, next -> Triple(prev, curr, next) }
+            },
             getSectionsUseCase(),
             _selectedDate.flatMapLatest { date ->
                 val weekStart = date.minusDays(date.dayOfWeek.value.toLong() - 1)
-                val weekEnd = weekStart.plusDays(6)
-                getWeeklyMacrosUseCase(weekStart, weekEnd)
+                getWeeklyMacrosUseCase(weekStart.minusDays(7), weekStart.plusDays(13))
             }
-        ) { date, entries, sections, weeklyRows ->
-            Quadro(date, entries, sections, weeklyRows)
+        ) { date, allEntries, sections, allWeeklyRows ->
+            Quadro(date, allEntries, sections, allWeeklyRows)
         },
         combine(
             getSettingsUseCase(),
             _selectionMode,
-            _collapsedSections
+            _collapsedSections,
         ) { goals, selectionMode, _ ->
             Triple(goals, selectionMode, Unit)
         }
     ) { data1, data2 ->
         val date = data1.date
-        val entries = data1.entries
+        val (prevEntries, currEntries, nextEntries) = data1.allEntries
         val sections = data1.sections
-        val weeklyRows = data1.weeklyRows
+        val allWeeklyRows = data1.allWeeklyRows
         val goals = data2.first
         val selectionMode = data2.second
 
-        if (needsCollapseSeed) {
-            _collapsedSections.value = computeDefaultCollapsed(date, sections)
-            needsCollapseSeed = false
+        val dates = listOf(date.minusDays(1), date, date.plusDays(1))
+        for (d in dates) {
+            if (!seededDates.contains(d)) {
+                val collapsed = _collapsedSections.value.toMutableMap()
+                collapsed[d] = computeDefaultCollapsed(d, sections)
+                _collapsedSections.value = collapsed
+                seededDates.add(d)
+            }
         }
-        val collapsedSections = _collapsedSections.value
+        val collapsedMap = _collapsedSections.value
 
-        val totalLoggedMacros = entries.fold(Macros(0f, 0f, 0f, 0f)) { acc, entry -> acc + entry.macros }
-        val dailySummary = DailySummary(date, totalLoggedMacros, goals)
+        val currentDay = buildDayContent(date, currEntries, sections, goals, collapsedMap)
+        val prevDay = buildDayContent(date.minusDays(1), prevEntries, sections, goals, collapsedMap)
+        val nextDay = buildDayContent(date.plusDays(1), nextEntries, sections, goals, collapsedMap)
 
-        val weekDates = buildWeekDates(date, goals, weeklyRows)
-
-        val sectionMap = entries.groupBy { it.sectionId }
-        val sectionsWithEntries = sections.map { section ->
-            val sectionEntries = sectionMap[section.id] ?: emptyList()
-            val sectionMacros = sectionEntries.fold(Macros(0f, 0f, 0f, 0f)) { acc, entry -> acc + entry.macros }
-            SectionWithEntries(
-                section = section,
-                entries = sectionEntries.sortedBy { it.sortOrder },
-                totalMacros = sectionMacros,
-                isExpanded = !collapsedSections.contains(section.id)
-            )
-        }.sortedBy { it.section.timeOfDay }
+        val currentWeek = buildWeekDates(date, date, goals, allWeeklyRows)
+        val prevWeek = buildWeekDates(date.minusWeeks(1), date, goals, allWeeklyRows)
+        val nextWeek = buildWeekDates(date.plusWeeks(1), date, goals, allWeeklyRows)
 
         LogUiState(
             selectedDate = date,
-            weekDates = weekDates,
-            dailySummary = dailySummary,
-            sections = sectionsWithEntries,
+            prevDay = prevDay,
+            currentDay = currentDay,
+            nextDay = nextDay,
+            prevWeek = prevWeek,
+            currentWeek = currentWeek,
+            nextWeek = nextWeek,
             selectionMode = selectionMode,
-            isLoading = false
+            isLoading = false,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -115,19 +119,45 @@ class LogViewModel @Inject constructor(
         initialValue = LogUiState(isLoading = true)
     )
 
+    private fun buildDayContent(
+        date: LocalDate,
+        entries: List<LogEntry>,
+        sections: List<Section>,
+        goals: com.macrotrack.domain.model.DailyGoals,
+        collapsedMap: Map<LocalDate, Set<Long>>,
+    ): DayContent {
+        val collapsed = collapsedMap[date] ?: emptySet()
+        val totalLoggedMacros = entries.fold(Macros(0f, 0f, 0f, 0f)) { acc, entry -> acc + entry.macros }
+        val summary = DailySummary(date, totalLoggedMacros, goals)
+        val sectionMap = entries.groupBy { it.sectionId }
+        val sectionsWithEntries = sections.map { section ->
+            val sectionEntries = sectionMap[section.id] ?: emptyList()
+            val sectionMacros =
+                sectionEntries.fold(Macros(0f, 0f, 0f, 0f)) { acc, entry -> acc + entry.macros }
+            SectionWithEntries(
+                section = section,
+                entries = sectionEntries.sortedBy { it.sortOrder },
+                totalMacros = sectionMacros,
+                isExpanded = !collapsed.contains(section.id)
+            )
+        }.sortedBy { it.section.timeOfDay }
+        return DayContent(date, summary, sectionsWithEntries)
+    }
+
     fun onDateSelected(date: LocalDate) {
         _selectedDate.value = date
         _selectionMode.value = SelectionMode.Off
-        needsCollapseSeed = true
     }
 
-    fun toggleSectionExpanded(sectionId: Long) {
-        val current = _collapsedSections.value.toMutableSet()
-        if (current.contains(sectionId)) {
-            current.remove(sectionId)
+    fun toggleSectionExpanded(date: LocalDate, sectionId: Long) {
+        val current = _collapsedSections.value.toMutableMap()
+        val set = current[date].orEmpty().toMutableSet()
+        if (set.contains(sectionId)) {
+            set.remove(sectionId)
         } else {
-            current.add(sectionId)
+            set.add(sectionId)
         }
+        current[date] = set
         _collapsedSections.value = current
     }
 
@@ -169,9 +199,8 @@ class LogViewModel @Inject constructor(
         }
     }
 
-    private fun selectedEntries(): List<LogEntry> {
-        val ids = (_selectionMode.value as? SelectionMode.Selecting)?.selectedIds ?: return emptyList()
-        return uiState.value.sections.flatMap { it.entries }.filter { it.id in ids }
+    private fun currentDaySections(): List<SectionWithEntries> {
+        return uiState.value.currentDay?.sections ?: emptyList()
     }
 
     fun copySelectedEntries() {
@@ -185,7 +214,8 @@ class LogViewModel @Inject constructor(
     }
 
     fun deleteSelectedEntries() {
-        val entries = selectedEntries()
+        val ids = (_selectionMode.value as? SelectionMode.Selecting)?.selectedIds ?: return
+        val entries = currentDaySections().flatMap { it.entries }.filter { it.id in ids }
         if (entries.isEmpty()) return
         viewModelScope.launch {
             deleteLogEntriesUseCase(entries)
@@ -195,7 +225,7 @@ class LogViewModel @Inject constructor(
 
     fun confirmCopyMove(targetDate: LocalDate) {
         val mode = _selectionMode.value as? SelectionMode.ChoosingDestination ?: return
-        val entries = uiState.value.sections.flatMap { it.entries }.filter { it.id in mode.selectedIds }
+        val entries = currentDaySections().flatMap { it.entries }.filter { it.id in mode.selectedIds }
         if (entries.isEmpty()) return
         viewModelScope.launch {
             when (mode.action) {
@@ -232,12 +262,13 @@ class LogViewModel @Inject constructor(
     }
 
     private fun buildWeekDates(
-        currentDate: LocalDate,
+        referenceDate: LocalDate,
+        selectedDate: LocalDate,
         goals: com.macrotrack.domain.model.DailyGoals,
         weeklyRows: List<DailyMacroRow>,
     ): List<WeekDay> {
         val rowMap = weeklyRows.associateBy { it.date }
-        val startOfWeek = currentDate.minusDays(currentDate.dayOfWeek.value.toLong() - 1)
+        val startOfWeek = referenceDate.minusDays(referenceDate.dayOfWeek.value.toLong() - 1)
         val today = LocalDate.now()
         val totalGoalKcal = goals.kcal.toFloat().coerceAtLeast(1f)
 
@@ -258,7 +289,7 @@ class LogViewModel @Inject constructor(
                 date = date,
                 dayName = date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault()),
                 dayNumber = date.dayOfMonth,
-                isSelected = date == currentDate,
+                isSelected = date == selectedDate,
                 isToday = date == today,
                 proteinKcalGoal = proteinGoalKcalShare,
                 carbsKcalGoal = carbsGoalKcalShare,
@@ -272,8 +303,8 @@ class LogViewModel @Inject constructor(
 
     private data class Quadro(
         val date: LocalDate,
-        val entries: List<LogEntry>,
+        val allEntries: Triple<List<LogEntry>, List<LogEntry>, List<LogEntry>>,
         val sections: List<Section>,
-        val weeklyRows: List<DailyMacroRow>,
+        val allWeeklyRows: List<DailyMacroRow>,
     )
 }
