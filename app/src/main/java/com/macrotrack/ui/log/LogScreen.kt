@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.macrotrack.ui.components.*
 import com.macrotrack.ui.settings.CalendarModal
+import com.macrotrack.ui.theme.MacroTrackPillShape
 import com.macrotrack.ui.theme.MacroTrackShapes
 import com.macrotrack.ui.theme.Spacing
 import com.macrotrack.ui.theme.brandOnPrimary
@@ -146,7 +147,8 @@ fun LogScreen(
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(paddingValues)
+                    .padding(paddingValues),
+                contentPadding = PaddingValues(bottom = 88.dp)
             ) {
                 item {
                     WeekDateStrip(
@@ -225,12 +227,18 @@ fun LogScreen(
                         if (sectionWithEntries.isExpanded) {
                             if (sectionWithEntries.entries.isEmpty()) {
                                 item {
-                                    Text(
-                                        text = "No items logged",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.padding(horizontal = Spacing.xxl, vertical = Spacing.sm)
-                                    )
+                                    val sectionId = sectionWithEntries.section.id
+                                    val dateIso = uiState.selectedDate.format(DateTimeFormatter.ISO_LOCAL_DATE)
+                                    OutlinedButton(
+                                        onClick = { onNavigateToAddFood(sectionId, dateIso, "search") },
+                                        shape = MacroTrackPillShape,
+                                        modifier = Modifier
+                                            .padding(horizontal = Spacing.xxl, vertical = Spacing.sm),
+                                    ) {
+                                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                                        Spacer(Modifier.width(Spacing.xs))
+                                        Text("Add food")
+                                    }
                                 }
                             } else {
                                 items(
@@ -261,8 +269,6 @@ fun LogScreen(
                     }
                 }
 
-                // Add a spacer at the bottom
-                item { Spacer(modifier = Modifier.height(16.dp)) }
             }
         }
     }
