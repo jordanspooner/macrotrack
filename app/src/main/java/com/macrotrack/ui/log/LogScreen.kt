@@ -35,6 +35,7 @@ import com.macrotrack.ui.components.*
 import com.macrotrack.ui.settings.CalendarModal
 import com.macrotrack.ui.theme.MacroTrackShapes
 import com.macrotrack.ui.theme.Spacing
+import com.macrotrack.ui.theme.brandOnPrimary
 import com.macrotrack.ui.theme.brandPrimary
 import com.macrotrack.ui.theme.restingSurfaceColor
 import com.macrotrack.domain.model.Section
@@ -123,8 +124,8 @@ fun LogScreen(
             ) {
                 FloatingActionButton(
                     onClick = { showAddMenu = true },
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    containerColor = brandPrimary(),
+                    contentColor = brandOnPrimary()
                 ) {
                     Icon(Icons.Default.Add, contentDescription = "Add food")
                 }

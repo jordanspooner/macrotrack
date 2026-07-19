@@ -18,6 +18,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.PrimaryTabRow
+import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -28,9 +29,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.macrotrack.domain.model.Section
+import com.macrotrack.ui.theme.brandPrimary
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
@@ -98,12 +101,28 @@ fun AddScreen(
                 onSectionSelected = { viewModel.setTargetSection(it) }
             )
 
-            PrimaryTabRow(selectedTabIndex = selectedTab) {
+            PrimaryTabRow(
+                selectedTabIndex = selectedTab,
+                indicator = {
+                    TabRowDefaults.PrimaryIndicator(
+                        modifier = Modifier.tabIndicatorOffset(selectedTab),
+                        height = 3.dp,
+                        color = brandPrimary()
+                    )
+                }
+            ) {
                 modes.forEachIndexed { index, mode ->
+                    val selected = selectedTab == index
                     Tab(
-                        selected = selectedTab == index,
+                        selected = selected,
                         onClick = { viewModel.setMode(mode) },
-                        text = { Text(mode.label) }
+                        text = {
+                            Text(
+                                mode.label,
+                                color = if (selected) brandPrimary() else MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
+                            )
+                        }
                     )
                 }
             }

@@ -47,7 +47,7 @@ class SettingsViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             getSettingsUseCase().collect { goals ->
-                if (!_draftGoals.compareAndSet(DailyGoals(150, 250, 65), goals)) {
+                if (_draftGoals.value == DailyGoals(150, 250, 65)) {
                     _draftGoals.value = goals
                 }
             }
@@ -264,8 +264,7 @@ class SettingsViewModel @Inject constructor(
             }
         }
         _sectionDistribution.value = current
-        _distributionDirty.value = true
-        _hasUnsavedChanges.value = true
+        persistDistribution()
     }
 
     private fun Section.toDraftSection() = DraftSection(
