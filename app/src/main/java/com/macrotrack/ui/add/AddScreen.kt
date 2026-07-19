@@ -31,6 +31,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.macrotrack.domain.model.Section
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -43,6 +45,14 @@ fun AddScreen(
     val selectedTab = modes.indexOf(uiState.mode).coerceAtLeast(0)
     val pendingFood = uiState.pendingFood
 
+    val relDate = when (uiState.date) {
+        LocalDate.now() -> "Today"
+        LocalDate.now().minusDays(1) -> "Yesterday"
+        else -> uiState.date.format(DateTimeFormatter.ofPattern("EEE, MMM d"))
+    }
+    val sectionName =
+        uiState.sections.find { it.id == uiState.targetSectionId }?.name ?: "Dinner"
+
     var sectionMenuExpanded by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -50,9 +60,9 @@ fun AddScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text("Add Food")
+                        Text(relDate, style = MaterialTheme.typography.titleMedium)
                         Text(
-                            uiState.dateIso,
+                            sectionName,
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -102,6 +112,7 @@ fun AddScreen(
                 if (pendingFood != null) {
                     PortionSizeScreen(
                         food = pendingFood,
+                        sectionName = sectionName,
                         onConfirm = viewModel::confirmPortion,
                         onBack = viewModel::backFromPortion
                     )
@@ -110,7 +121,8 @@ fun AddScreen(
                         AddMode.SEARCH -> SearchContent(
                             uiState = uiState,
                             onQueryChanged = viewModel::onQueryChanged,
-                            onFoodSelected = viewModel::selectFood
+                            onFoodSelected = viewModel::selectFood,
+                            onQuickAddClick = { viewModel.setMode(AddMode.QUICK_ADD) }
                         )
                         AddMode.BARCODE -> BarcodeScanScreen(onBarcodeDetected = viewModel::onBarcodeScanned)
                         AddMode.LABEL -> LabelScanScreen(onLabelConfirmed = viewModel::onLabelParsed)
@@ -173,5 +185,5 @@ private val AddMode.label: String
         AddMode.SEARCH -> "Search"
         AddMode.BARCODE -> "Barcode"
         AddMode.LABEL -> "Label"
-        AddMode.QUICK_ADD -> "Quick Add"
+        AddMode.QUICK_ADD -> "Quick"
     }

@@ -58,6 +58,7 @@ import com.macrotrack.domain.parser.LabelConsensus
 import com.macrotrack.domain.parser.LabelParser
 import com.macrotrack.domain.parser.OcrElement
 import com.macrotrack.domain.parser.ParsedNutritionLabel
+import com.macrotrack.ui.components.MacroDonut
 import kotlinx.coroutines.flow.MutableSharedFlow
 import java.util.concurrent.Executors
 
@@ -233,11 +234,10 @@ fun LabelScanScreen(onLabelConfirmed: (ParsedNutritionLabel) -> Unit) {
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    MacroPieChart(
+                    MacroDonut(
                         macros = label.toMacros(),
-                        modifier = Modifier
-                            .size(104.dp)
-                            .padding(4.dp)
+                        diameter = 104.dp,
+                        modifier = Modifier.padding(4.dp)
                     )
                     Column(
                         modifier = Modifier.weight(1f),
