@@ -1,11 +1,13 @@
 package com.macrotrack.data.repository
 
+import com.macrotrack.data.local.db.dao.DailyMacroRow
 import com.macrotrack.domain.model.LogEntry
 import kotlinx.coroutines.flow.Flow
 import java.time.LocalDate
 
 interface LogRepository {
     fun getLogEntriesByDate(date: LocalDate): Flow<List<LogEntry>>
+    fun getMacrosByDateRange(from: LocalDate, to: LocalDate): Flow<List<DailyMacroRow>>
     suspend fun insert(entry: LogEntry): Long
     suspend fun insertAll(entries: List<LogEntry>)
     suspend fun update(entry: LogEntry)

@@ -17,11 +17,16 @@ data class LogUiState(
 
 data class WeekDay(
     val date: LocalDate,
-    val dayName: String,         // "Mon", "Tue", etc.
-    val dayNumber: Int,          // 7, 8, etc.
-    val kcalPercent: Float,      // 0.0-1.0 for progress bar
+    val dayName: String,
+    val dayNumber: Int,
     val isSelected: Boolean,
     val isToday: Boolean,
+    val proteinKcalGoal: Float = 0f,
+    val carbsKcalGoal: Float = 0f,
+    val fatKcalGoal: Float = 0f,
+    val proteinKcalActual: Float = 0f,
+    val carbsKcalActual: Float = 0f,
+    val fatKcalActual: Float = 0f,
 )
 
 data class SectionWithEntries(

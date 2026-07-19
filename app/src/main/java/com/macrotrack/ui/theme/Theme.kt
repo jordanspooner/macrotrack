@@ -112,6 +112,19 @@ fun brandOnPrimary(): Color = if (isDark) Color(0xFF00210F) else Color(0xFFFFFFF
 @Composable
 fun overageColor(): Color = MaterialTheme.colorScheme.error
 
+/** Per-theme overage tints for 100-200% progress fill (darker on light, lighter on dark). */
+@Composable
+fun macroCaloriesOverageColor(): Color = if (isDark) MacroCaloriesOverageDark else MacroCaloriesOverageLight
+
+@Composable
+fun macroProteinOverageColor(): Color = if (isDark) MacroProteinOverageDark else MacroProteinOverageLight
+
+@Composable
+fun macroCarbsOverageColor(): Color = if (isDark) MacroCarbsOverageDark else MacroCarbsOverageLight
+
+@Composable
+fun macroFatOverageColor(): Color = if (isDark) MacroFatOverageDark else MacroFatOverageLight
+
 /**
  * A very faint surface tint for resting-state backgrounds (replaces the old
  * `Color.Transparent` usage that produced dead-looking UI on dark themes).

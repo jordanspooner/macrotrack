@@ -12,6 +12,16 @@ val MacroCarbsDark     = Color(0xFF7DAFFF)
 val MacroFatLight      = Color(0xFFD97757) // terracotta
 val MacroFatDark       = Color(0xFFE89A7D)
 
+// Per-theme overage tints (darker on light, lighter on dark) for 100-200% progress fill
+val MacroCaloriesOverageLight = Color(0xFFD08A1C)
+val MacroCaloriesOverageDark  = Color(0xFFFCD34D)
+val MacroProteinOverageLight  = Color(0xFF3F5E32)
+val MacroProteinOverageDark   = Color(0xFFC5D8A8)
+val MacroCarbsOverageLight    = Color(0xFF1E5BB8)
+val MacroCarbsOverageDark     = Color(0xFF98C2FF)
+val MacroFatOverageLight      = Color(0xFFB0593B)
+val MacroFatOverageDark       = Color(0xFFF1B49D)
+
 // Authored brand primary (sage) — used for FAB, tab indicator, selected date, CTAs.
 val BrandPrimaryLight = Color(0xFF3F6B47)
 val BrandPrimaryDark  = Color(0xFF8FBF9A)
