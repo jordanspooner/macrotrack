@@ -62,7 +62,7 @@ fun PortionSizeScreen(
     ) { padding ->
         PortionSizeContent(
             food = food,
-            confirmLabel = "Add to $sectionName · ${food.macroPer100g.kcal.toInt()} kcal",
+            confirmLabel = "Add to $sectionName · ",
             initialPortionG = null,
             initialPortionLabel = null,
             onConfirm = onConfirm,
@@ -88,6 +88,12 @@ fun PortionSizeContent(
     var selectedMult by remember { mutableStateOf<Float?>(if (initialPortionG == null) 1f else null) }
 
     val portioned = food.macroPer100g * (portionG / 100f)
+
+    val servingInfo = buildString {
+        defaultLabel?.let { append(it).append(" (") }
+        append("${if (defaultPortionG % 1 == 0f) defaultPortionG.toInt() else defaultPortionG}g")
+        defaultLabel?.let { append(")") }
+    }
 
     val presets = listOf(
         0.25f to "1/4",
@@ -115,6 +121,12 @@ fun PortionSizeContent(
         Text(
             "P ${portioned.proteinG.toInt()}g · C ${portioned.carbsG.toInt()}g · F ${portioned.fatG.toInt()}g",
             style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        Text(
+            servingInfo,
+            style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
@@ -158,7 +170,7 @@ fun PortionSizeContent(
 
         SaveButton(
             hasChanges = true,
-            label = confirmLabel,
+            label = "$confirmLabel${portioned.kcal.toInt()} kcal",
             onClick = {
                 val label = if (portionG == defaultPortionG) defaultLabel else null
                 onConfirm(portionG, label)
