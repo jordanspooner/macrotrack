@@ -2,6 +2,7 @@ package com.macrotrack.ui.log
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.macrotrack.data.local.db.dao.DailyMacroRow
 import com.macrotrack.domain.model.DailySummary
 import com.macrotrack.domain.model.LogEntry
 import com.macrotrack.domain.model.Macros
@@ -10,6 +11,7 @@ import com.macrotrack.domain.usecase.food.ReseedFoodDatabaseUseCase
 import com.macrotrack.domain.usecase.log.CopyLogEntriesUseCase
 import com.macrotrack.domain.usecase.log.DeleteLogEntriesUseCase
 import com.macrotrack.domain.usecase.log.GetDailyLogUseCase
+import com.macrotrack.domain.usecase.log.GetWeeklyMacrosUseCase
 import com.macrotrack.domain.usecase.log.MoveLogEntriesUseCase
 import com.macrotrack.domain.usecase.settings.GetSectionsUseCase
 import com.macrotrack.domain.usecase.settings.GetSettingsUseCase
@@ -35,7 +37,8 @@ class LogViewModel @Inject constructor(
     private val deleteLogEntriesUseCase: DeleteLogEntriesUseCase,
     private val copyLogEntriesUseCase: CopyLogEntriesUseCase,
     private val moveLogEntriesUseCase: MoveLogEntriesUseCase,
-    private val reseedFoodDatabaseUseCase: ReseedFoodDatabaseUseCase
+    private val reseedFoodDatabaseUseCase: ReseedFoodDatabaseUseCase,
+    private val getWeeklyMacrosUseCase: GetWeeklyMacrosUseCase,
 ) : ViewModel() {
 
     private val _selectedDate = MutableStateFlow(LocalDate.now())
@@ -43,7 +46,6 @@ class LogViewModel @Inject constructor(
     private val _collapsedSections = MutableStateFlow<Set<Long>>(emptySet())
     private var needsCollapseSeed = true
 
-    /** One-shot message surfaced to the UI after a reseed (or reseed failure). */
     private val _reseedMessage = MutableStateFlow<String?>(null)
     val reseedMessage: StateFlow<String?> = _reseedMessage
 
@@ -52,9 +54,14 @@ class LogViewModel @Inject constructor(
         combine(
             _selectedDate,
             _selectedDate.flatMapLatest { date -> getDailyLogUseCase(date) },
-            getSectionsUseCase()
-        ) { date, entries, sections ->
-            Triple(date, entries, sections)
+            getSectionsUseCase(),
+            _selectedDate.flatMapLatest { date ->
+                val weekStart = date.minusDays(date.dayOfWeek.value.toLong() - 1)
+                val weekEnd = weekStart.plusDays(6)
+                getWeeklyMacrosUseCase(weekStart, weekEnd)
+            }
+        ) { date, entries, sections, weeklyRows ->
+            Quadro(date, entries, sections, weeklyRows)
         },
         combine(
             getSettingsUseCase(),
@@ -64,9 +71,10 @@ class LogViewModel @Inject constructor(
             Triple(goals, selectionMode, Unit)
         }
     ) { data1, data2 ->
-        val date = data1.first
-        val entries = data1.second
-        val sections = data1.third
+        val date = data1.date
+        val entries = data1.entries
+        val sections = data1.sections
+        val weeklyRows = data1.weeklyRows
         val goals = data2.first
         val selectionMode = data2.second
 
@@ -75,15 +83,12 @@ class LogViewModel @Inject constructor(
             needsCollapseSeed = false
         }
         val collapsedSections = _collapsedSections.value
-        
-        // Calculate daily summary
+
         val totalLoggedMacros = entries.fold(Macros(0f, 0f, 0f, 0f)) { acc, entry -> acc + entry.macros }
         val dailySummary = DailySummary(date, totalLoggedMacros, goals)
 
-        // Build week dates
-        val weekDates = buildWeekDates(date)
+        val weekDates = buildWeekDates(date, goals, weeklyRows)
 
-        // Group by sections
         val sectionMap = entries.groupBy { it.sectionId }
         val sectionsWithEntries = sections.map { section ->
             val sectionEntries = sectionMap[section.id] ?: emptyList()
@@ -226,18 +231,49 @@ class LogViewModel @Inject constructor(
         return (past.lastOrNull() ?: sorted.last()).id
     }
 
-    private fun buildWeekDates(currentDate: LocalDate): List<WeekDay> {
+    private fun buildWeekDates(
+        currentDate: LocalDate,
+        goals: com.macrotrack.domain.model.DailyGoals,
+        weeklyRows: List<DailyMacroRow>,
+    ): List<WeekDay> {
+        val rowMap = weeklyRows.associateBy { it.date }
         val startOfWeek = currentDate.minusDays(currentDate.dayOfWeek.value.toLong() - 1)
+        val today = LocalDate.now()
+        val totalGoalKcal = goals.kcal.toFloat().coerceAtLeast(1f)
+
+        val proteinGoalKcalShare = (goals.proteinG * 4f) / totalGoalKcal
+        val carbsGoalKcalShare = (goals.carbsG * 4f) / totalGoalKcal
+        val fatGoalKcalShare = (goals.fatG * 9f) / totalGoalKcal
+
         return (0..6).map { i ->
             val date = startOfWeek.plusDays(i.toLong())
+            val dateStr = date.toString()
+            val row = rowMap[dateStr]
+
+            val proteinKcalActual = (row?.protein ?: 0f) * 4f
+            val carbsKcalActual = (row?.carbs ?: 0f) * 4f
+            val fatKcalActual = (row?.fat ?: 0f) * 9f
+
             WeekDay(
                 date = date,
                 dayName = date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault()),
                 dayNumber = date.dayOfMonth,
-                kcalPercent = 0f, // TODO: Fetch weekly summary to get actual percents
                 isSelected = date == currentDate,
-                isToday = date == LocalDate.now()
+                isToday = date == today,
+                proteinKcalGoal = proteinGoalKcalShare,
+                carbsKcalGoal = carbsGoalKcalShare,
+                fatKcalGoal = fatGoalKcalShare,
+                proteinKcalActual = (proteinKcalActual / totalGoalKcal).coerceAtMost(1f),
+                carbsKcalActual = (carbsKcalActual / totalGoalKcal).coerceAtMost(1f),
+                fatKcalActual = (fatKcalActual / totalGoalKcal).coerceAtMost(1f),
             )
         }
     }
+
+    private data class Quadro(
+        val date: LocalDate,
+        val entries: List<LogEntry>,
+        val sections: List<Section>,
+        val weeklyRows: List<DailyMacroRow>,
+    )
 }

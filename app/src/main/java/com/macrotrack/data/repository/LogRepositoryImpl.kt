@@ -1,5 +1,6 @@
 package com.macrotrack.data.repository
 
+import com.macrotrack.data.local.db.dao.DailyMacroRow
 import com.macrotrack.data.local.db.dao.LogEntryDao
 import com.macrotrack.data.mapper.toDomain
 import com.macrotrack.data.mapper.toEntity
@@ -16,6 +17,13 @@ class LogRepositoryImpl @Inject constructor(
     override fun getLogEntriesByDate(date: LocalDate): Flow<List<LogEntry>> {
         return logEntryDao.getLogEntriesByDate(date.format(DateTimeFormatter.ISO_LOCAL_DATE))
             .map { entities -> entities.map { it.toDomain() } }
+    }
+
+    override fun getMacrosByDateRange(from: LocalDate, to: LocalDate): Flow<List<DailyMacroRow>> {
+        return logEntryDao.getMacrosByDateRange(
+            from = from.format(DateTimeFormatter.ISO_LOCAL_DATE),
+            to = to.format(DateTimeFormatter.ISO_LOCAL_DATE)
+        )
     }
 
     override suspend fun insert(entry: LogEntry): Long {

@@ -43,4 +43,15 @@ interface LogEntryDao {
 
     @Query("SELECT DISTINCT foodItemId FROM log_entries WHERE foodItemId IS NOT NULL")
     fun getLoggedFoodIds(): Flow<List<Long>>
+
+    @Query("SELECT date, SUM(kcal) AS kcal, SUM(protein) AS protein, SUM(carbs) AS carbs, SUM(fat) AS fat FROM log_entries WHERE date BETWEEN :from AND :to GROUP BY date")
+    fun getMacrosByDateRange(from: String, to: String): Flow<List<DailyMacroRow>>
 }
+
+data class DailyMacroRow(
+    val date: String,
+    val kcal: Float,
+    val protein: Float,
+    val carbs: Float,
+    val fat: Float,
+)
