@@ -8,11 +8,20 @@ import java.time.LocalDate
 
 data class LogUiState(
     val selectedDate: LocalDate = LocalDate.now(),
-    val weekDates: List<WeekDay> = emptyList(),
-    val dailySummary: DailySummary? = null,
-    val sections: List<SectionWithEntries> = emptyList(),
+    val prevDay: DayContent? = null,
+    val currentDay: DayContent? = null,
+    val nextDay: DayContent? = null,
+    val prevWeek: List<WeekDay> = emptyList(),
+    val currentWeek: List<WeekDay> = emptyList(),
+    val nextWeek: List<WeekDay> = emptyList(),
     val selectionMode: SelectionMode = SelectionMode.Off,
     val isLoading: Boolean = false,
+)
+
+data class DayContent(
+    val date: LocalDate,
+    val summary: DailySummary,
+    val sections: List<SectionWithEntries>,
 )
 
 data class WeekDay(
