@@ -29,7 +29,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -79,28 +78,20 @@ fun FoodSourcesScreen(
                 ) {
                     CircularProgressIndicator()
                 }
+            } else if (uiState.catalogError != null && uiState.sources.isEmpty()) {
+                CatalogUnavailableState(
+                    title = "Catalog unavailable",
+                    message = uiState.catalogError ?: "Failed to load food sources.",
+                    onRetry = { viewModel.refreshCatalog() },
+                    onNavigateToMyFoods = onNavigateToMyFoods,
+                )
             } else if (uiState.sources.isEmpty() && uiState.catalogError == null) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            "No food sources available",
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                        Spacer(modifier = Modifier.height(Spacing.sm))
-                        Text(
-                            "Check your internet connection and try again, or add foods manually via Quick Add.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.height(Spacing.lg))
-                        TextButton(onClick = { viewModel.refreshCatalog() }) {
-                            Text("Retry")
-                        }
-                    }
-                }
+                CatalogUnavailableState(
+                    title = "No food sources available",
+                    message = "Install a source to search foods, or add your own foods manually.",
+                    onRetry = { viewModel.refreshCatalog() },
+                    onNavigateToMyFoods = onNavigateToMyFoods,
+                )
             } else {
                 uiState.catalogError?.let { error ->
                     Box(
@@ -214,6 +205,47 @@ fun FoodSourcesScreen(
                 },
                 dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("Cancel") } }
             )
+        }
+    }
+}
+
+@Composable
+private fun CatalogUnavailableState(
+    title: String,
+    message: String,
+    onRetry: () -> Unit,
+    onNavigateToMyFoods: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(Spacing.lg),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+            )
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            ) {
+                Button(onClick = onRetry) {
+                    Text("Retry")
+                }
+                TextButton(onClick = onNavigateToMyFoods) {
+                    Text("My custom foods")
+                }
+            }
         }
     }
 }

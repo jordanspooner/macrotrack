@@ -25,7 +25,7 @@ android {
         buildConfigField(
             "String",
             "FOOD_SOURCES_CATALOG_URL",
-            "\"https://raw.githubusercontent.com/jordanspooner/macrotrack-food-data/main/catalog.json\""
+            "\"https://raw.githubusercontent.com/jordanspooner/macrotrack-food-data/master/catalog.json\""
         )
     }
 

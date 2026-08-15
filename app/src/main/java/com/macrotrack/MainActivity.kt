@@ -50,7 +50,6 @@ class MainActivity : ComponentActivity() {
                         composable("settings") {
                             SettingsScreen(
                                 onBack = { navController.popBackStack() },
-                                onNavigateToFoodSources = { navController.navigate("food-sources") }
                             )
                         }
                         composable(

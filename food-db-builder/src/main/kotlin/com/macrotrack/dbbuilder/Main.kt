@@ -43,7 +43,7 @@ fun main() {
         ?: File("output")
 
     val catalogUrlBase = System.getProperty("macrotrack.catalogBaseUrl")
-        ?: "https://raw.githubusercontent.com/jordanspooner/macrotrack-food-data/main"
+        ?: "https://raw.githubusercontent.com/jordanspooner/macrotrack-food-data/master"
 
     outputDir.mkdirs()
 
