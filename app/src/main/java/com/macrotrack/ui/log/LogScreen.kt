@@ -237,7 +237,7 @@ fun LogScreen(
 private val DATE_EPOCH = LocalDate.of(1970, 1, 1)
 private fun pageForDate(d: LocalDate): Int = ChronoUnit.DAYS.between(DATE_EPOCH, d).toInt()
 private fun dateForPage(p: Int): LocalDate = DATE_EPOCH.plusDays(p.toLong())
-private fun weekPageForDate(d: LocalDate): Int {
+internal fun weekPageForDate(d: LocalDate): Int {
     val ws = d.minusDays(d.dayOfWeek.value.toLong() - 1)
     return (ChronoUnit.DAYS.between(DATE_EPOCH, ws) / 7).toInt()
 }
@@ -277,20 +277,21 @@ private fun LogContent(
         if (contentPagerState.currentPage != cp) {
             contentPagerState.animateScrollToPage(cp)
         }
-        val wp = weekPageForDate(uiState.selectedDate)
-        if (weekPagerState.currentPage != wp) {
-            weekPagerState.animateScrollToPage(wp)
-        }
     }
 
     LaunchedEffect(weekPagerState, uiState.selectedDate) {
+        val target = weekPageForDate(uiState.selectedDate)
+        val current = weekPagerState.currentPage
+        when (current - target) {
+            1, -1 -> weekPagerState.animateScrollToPage(target)
+            else -> if (current != target) weekPagerState.scrollToPage(target)
+        }
         snapshotFlow { weekPagerState.settledPage }
             .collect { page ->
-                val target = weekPageForDate(uiState.selectedDate)
                 if (page > target + 1) {
-                    weekPagerState.animateScrollToPage(target + 1)
+                    weekPagerState.scrollToPage(target + 1)
                 } else if (page < target - 1) {
-                    weekPagerState.animateScrollToPage(target - 1)
+                    weekPagerState.scrollToPage(target - 1)
                 }
             }
     }
@@ -305,12 +306,13 @@ private fun LogContent(
             beyondViewportPageCount = 0,
             modifier = Modifier.fillMaxWidth(),
         ) { page ->
-            val weekDays = weekDaysForPage(page, uiState)
-            WeekDateStrip(
-                weekDays = weekDays,
-                onDateSelected = { day -> viewModel.onDateSelected(day.date) },
-                onOpenCalendar = onShowCalendar,
-            )
+            weekDaysForPage(page, uiState)?.let { weekDays ->
+                WeekDateStrip(
+                    weekDays = weekDays,
+                    onDateSelected = { day -> viewModel.onDateSelected(day.date) },
+                    onOpenCalendar = onShowCalendar,
+                )
+            }
         }
 
         HorizontalPager(
@@ -500,13 +502,13 @@ private fun AddMenuOption(
     }
 }
 
-private fun weekDaysForPage(page: Int, uiState: LogUiState): List<WeekDay> {
+internal fun weekDaysForPage(page: Int, uiState: LogUiState): List<WeekDay>? {
     val currentWeekPage = weekPageForDate(uiState.selectedDate)
     return when (page) {
         currentWeekPage -> uiState.currentWeek
         currentWeekPage - 1 -> uiState.prevWeek
         currentWeekPage + 1 -> uiState.nextWeek
-        else -> emptyList()
+        else -> null
     }
 }
 

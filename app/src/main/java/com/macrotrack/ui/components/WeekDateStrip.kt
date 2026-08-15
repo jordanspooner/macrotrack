@@ -39,6 +39,7 @@ fun WeekDateStrip(
     onOpenCalendar: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val firstDay = weekDays.firstOrNull() ?: return
     Surface(
         color = restingSurfaceColor(),
         shape = MacroTrackShapes.large,
@@ -54,7 +55,7 @@ fun WeekDateStrip(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = weekDays.first().date.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.getDefault())),
+                    text = firstDay.date.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.getDefault())),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
