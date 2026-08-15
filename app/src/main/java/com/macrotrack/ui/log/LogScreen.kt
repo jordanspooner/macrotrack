@@ -7,9 +7,12 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerDefaults
+import androidx.compose.foundation.pager.PagerSnapDistance
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.ime
@@ -260,6 +263,15 @@ private fun LogContent(
         initialPage = weekPageForDate(uiState.selectedDate),
         pageCount = { Int.MAX_VALUE },
     )
+    var userDraggedWeekPager by remember { mutableStateOf(false) }
+
+    LaunchedEffect(weekPagerState) {
+        weekPagerState.interactionSource.interactions.collect { interaction ->
+            if (interaction is DragInteraction.Start) {
+                userDraggedWeekPager = true
+            }
+        }
+    }
 
     LaunchedEffect(contentPagerState) {
         snapshotFlow { contentPagerState.settledPage }
@@ -274,24 +286,30 @@ private fun LogContent(
 
     LaunchedEffect(uiState.selectedDate) {
         val cp = pageForDate(uiState.selectedDate)
-        if (contentPagerState.currentPage != cp) {
-            contentPagerState.animateScrollToPage(cp)
+        val current = contentPagerState.currentPage
+        when (current - cp) {
+            1, -1 -> contentPagerState.animateScrollToPage(cp)
+            else -> if (current != cp) contentPagerState.scrollToPage(cp)
         }
     }
 
     LaunchedEffect(weekPagerState, uiState.selectedDate) {
         val target = weekPageForDate(uiState.selectedDate)
         val current = weekPagerState.currentPage
-        when (current - target) {
-            1, -1 -> weekPagerState.animateScrollToPage(target)
-            else -> if (current != target) weekPagerState.scrollToPage(target)
+        if (current != target) {
+            userDraggedWeekPager = false
+            when (current - target) {
+                1, -1 -> weekPagerState.animateScrollToPage(target)
+                else -> weekPagerState.scrollToPage(target)
+            }
         }
         snapshotFlow { weekPagerState.settledPage }
+            .distinctUntilChanged()
             .collect { page ->
-                if (page > target + 1) {
-                    weekPagerState.scrollToPage(target + 1)
-                } else if (page < target - 1) {
-                    weekPagerState.scrollToPage(target - 1)
+                val delta = weekNavigationDelta(page, target, userDraggedWeekPager)
+                userDraggedWeekPager = false
+                if (delta != 0L) {
+                    viewModel.onDateSelected(uiState.selectedDate.plusWeeks(delta))
                 }
             }
     }
@@ -304,6 +322,10 @@ private fun LogContent(
         HorizontalPager(
             state = weekPagerState,
             beyondViewportPageCount = 0,
+            flingBehavior = PagerDefaults.flingBehavior(
+                state = weekPagerState,
+                pagerSnapDistance = PagerSnapDistance.atMost(1),
+            ),
             modifier = Modifier.fillMaxWidth(),
         ) { page ->
             weekDaysForPage(page, uiState)?.let { weekDays ->
@@ -510,6 +532,15 @@ internal fun weekDaysForPage(page: Int, uiState: LogUiState): List<WeekDay>? {
         currentWeekPage + 1 -> uiState.nextWeek
         else -> null
     }
+}
+
+internal fun weekNavigationDelta(
+    settledPage: Int,
+    targetWeekPage: Int,
+    userSwiped: Boolean,
+): Long {
+    if (!userSwiped) return 0L
+    return (settledPage - targetWeekPage).toLong()
 }
 
 private fun dayContentForPage(page: Int, uiState: LogUiState): DayContent? {
