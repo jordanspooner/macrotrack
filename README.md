@@ -73,6 +73,15 @@ are downloaded. Run it with:
 ./gradlew :food-db-builder:run   # or pass -Dmacrotrack.output=<path>
 ```
 
+The downloadable food-source catalog is hosted at
+`https://raw.githubusercontent.com/jordanspooner/macrotrack-food-data/master/catalog.json`.
+When publishing source databases, generate the catalog with the same branch as the
+hosted files, for example:
+
+```
+./gradlew -Dmacrotrack.catalogBaseUrl=https://raw.githubusercontent.com/jordanspooner/macrotrack-food-data/master :food-db-builder:run
+```
+
 ### ✅ Phase 4: Add Food Flows (Days 9-12)
 - [x] `AddScreen` container with mode tabs (Search / Barcode / Label / Quick Add)
 - [x] **Search**: `SearchContent` with debounced FTS search, recommendations, quick-add
