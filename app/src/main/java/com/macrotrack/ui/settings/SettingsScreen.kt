@@ -83,6 +83,7 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
+    onNavigateToFoodSources: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -269,6 +270,34 @@ fun SettingsScreen(
                                 Text("Reset to defaults")
                             }
                         }
+                    }
+                }
+            }
+
+            // ===== Block 3.5: Food Database =====
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                    shape = MaterialTheme.shapes.medium,
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = onNavigateToFoodSources
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(Spacing.lg)
+                    ) {
+                        Text(
+                            text = "Food database",
+                            style = MaterialTheme.typography.titleSmall,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            text = "Manage data sources",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             }

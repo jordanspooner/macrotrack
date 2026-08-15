@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Update
 import com.macrotrack.data.local.db.entity.FoodItemEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -18,13 +19,29 @@ interface FoodItemDao {
     """)
     fun searchFoods(query: String): Flow<List<FoodItemEntity>>
 
+    @Query("SELECT * FROM food_items WHERE source = 'USER'")
+    fun getAllUserFoods(): Flow<List<FoodItemEntity>>
+
+    @Query("""
+        SELECT food_items.* FROM food_items
+        JOIN food_items_fts ON food_items.id = food_items_fts.rowid
+        WHERE food_items_fts MATCH :query AND food_items.source = 'USER'
+        ORDER BY matchinfo(food_items_fts)
+    """)
+    fun searchUserFoods(query: String): Flow<List<FoodItemEntity>>
+
     @Query("SELECT COUNT(*) FROM food_items")
     suspend fun count(): Int
 
-    /**
-     * Removes every pre-built food row. Room's @Fts4 external-content triggers
-     * keep `food_items_fts` in sync, so the search index is cleared too.
-     */
+    @Query("SELECT COUNT(*) FROM food_items WHERE source = 'USER'")
+    suspend fun countUserFoods(): Int
+
+    @Query("SELECT COUNT(*) FROM food_items WHERE dataSourceId = :sourceId AND source != 'USER'")
+    suspend fun countByDataSource(sourceId: String): Int
+
+    @Query("DELETE FROM food_items WHERE dataSourceId = :sourceId")
+    suspend fun deleteByDataSource(sourceId: String)
+
     @Query("DELETE FROM food_items")
     suspend fun clearAll()
 
@@ -36,4 +53,13 @@ interface FoodItemDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(foods: List<FoodItemEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(food: FoodItemEntity): Long
+
+    @Update
+    suspend fun update(food: FoodItemEntity)
+
+    @Query("DELETE FROM food_items WHERE id = :id")
+    suspend fun deleteById(id: Long)
 }

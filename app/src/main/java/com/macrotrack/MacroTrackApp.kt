@@ -1,7 +1,7 @@
 package com.macrotrack
 
 import android.app.Application
-import com.macrotrack.data.local.db.FoodDatabaseSeeder
+import com.macrotrack.data.local.db.FoodSourceSeeder
 import com.macrotrack.data.local.db.SectionSeeder
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
@@ -14,7 +14,7 @@ import javax.inject.Inject
 class MacroTrackApp : Application() {
 
     @Inject
-    lateinit var foodDatabaseSeeder: FoodDatabaseSeeder
+    lateinit var foodSourceSeeder: FoodSourceSeeder
 
     @Inject
     lateinit var sectionSeeder: SectionSeeder
@@ -24,7 +24,7 @@ class MacroTrackApp : Application() {
     override fun onCreate() {
         super.onCreate()
         scope.launch {
-            foodDatabaseSeeder.seedIfEmpty()
+            foodSourceSeeder.seedIfNeeded()
             sectionSeeder.seedIfEmpty()
         }
     }

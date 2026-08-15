@@ -13,6 +13,7 @@ import com.macrotrack.domain.usecase.food.LookupBarcodeUseCase
 import com.macrotrack.domain.usecase.food.SearchFoodUseCase
 import com.macrotrack.domain.usecase.log.AddLogEntryUseCase
 import com.macrotrack.domain.usecase.settings.GetSectionsUseCase
+import com.macrotrack.data.repository.FoodSourceRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
@@ -23,6 +24,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -53,7 +55,8 @@ data class AddUiState(
     val results: List<FoodItem>,
     val pendingFood: FoodItem?,
     val quickAddDraft: QuickAddDraft,
-    val message: String?
+    val message: String?,
+    val hasFoodData: Boolean = false,
 )
 
 @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
@@ -65,7 +68,8 @@ class AddViewModel @Inject constructor(
     private val getRecommendationsUseCase: GetRecommendationsUseCase,
     private val addLogEntryUseCase: AddLogEntryUseCase,
     private val lookupBarcodeUseCase: LookupBarcodeUseCase,
-    private val addUserFoodUseCase: AddUserFoodUseCase
+    private val addUserFoodUseCase: AddUserFoodUseCase,
+    private val foodSourceRepository: FoodSourceRepository,
 ) : ViewModel() {
 
     private val initialDateIso: String =
@@ -108,6 +112,11 @@ class AddViewModel @Inject constructor(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    private val _hasFoodData: StateFlow<Boolean> = foodSourceRepository
+        .getNonUserSources()
+        .map { sources -> sources.isNotEmpty() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
     val uiState: StateFlow<AddUiState> = combine(
         combine(_sections, _targetSectionId, _mode, _query, _results) {
                 sections, sectionId, mode, query, results ->
@@ -116,8 +125,9 @@ class AddViewModel @Inject constructor(
         },
         combine(_pendingFood, _quickAddDraft, _message) { pending, draft, message ->
             Three(pending, draft, message)
-        }
-    ) { a, b ->
+        },
+        _hasFoodData
+    ) { a, b, hasFoodData ->
         AddUiState(
             date = _date.value,
             dateIso = initialDateIso,
@@ -128,7 +138,8 @@ class AddViewModel @Inject constructor(
             results = a.results,
             pendingFood = b.pending,
             quickAddDraft = b.draft,
-            message = b.message
+            message = b.message,
+            hasFoodData = hasFoodData
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AddUiState(
         date = _date.value,

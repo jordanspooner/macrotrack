@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.ksp)
     alias(libs.plugins.hilt.android)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 android {
@@ -20,6 +21,12 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
+
+        buildConfigField(
+            "String",
+            "FOOD_SOURCES_CATALOG_URL",
+            "\"https://raw.githubusercontent.com/jordanspooner/macrotrack-food-data/main/catalog.json\""
+        )
     }
 
     buildTypes {
@@ -38,6 +45,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     packaging {
         resources {
@@ -86,6 +94,10 @@ dependencies {
     // ML Kit
     implementation(libs.mlkit.barcode.scanning)
     implementation(libs.mlkit.text.recognition)
+
+    // Networking
+    implementation(libs.okhttp)
+    implementation(libs.kotlinx.serialization.json)
 
     testImplementation(libs.junit)
     testImplementation(libs.junit.jupiter)

@@ -37,3 +37,4 @@ opencode.json
 # Stray root-level compiled artifacts
 *.class
 META-INF/
+food-db-builder/output/
