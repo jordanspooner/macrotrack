@@ -10,10 +10,11 @@ class WeekDateStripTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun `empty week list does not crash`() {
+    fun emptyWeekListDoesNotCrash() {
         composeRule.setContent {
             WeekDateStrip(weekDays = emptyList(), onDateSelected = {}, onOpenCalendar = {})
         }
         composeRule.waitForIdle()
     }
+
 }

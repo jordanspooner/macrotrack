@@ -92,7 +92,7 @@ private fun DayItem(day: WeekDay, onClick: () -> Unit, modifier: Modifier = Modi
     Column(
         modifier = modifier
             .clickable(onClick = onClick)
-            .padding(horizontal = Spacing.sm, vertical = Spacing.xs),
+            .padding(horizontal = Spacing.xs, vertical = Spacing.xs),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(Spacing.xs),
     ) {
@@ -105,13 +105,16 @@ private fun DayItem(day: WeekDay, onClick: () -> Unit, modifier: Modifier = Modi
         Surface(
             color = containerColor,
             shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.widthIn(min = 32.dp),
         ) {
             Text(
                 day.dayNumber.toString(),
                 style = MaterialTheme.typography.titleMedium,
                 color = textColor,
                 fontWeight = if (day.isToday || day.isSelected) FontWeight.Bold else FontWeight.Normal,
-                modifier = Modifier.padding(horizontal = Spacing.sm, vertical = Spacing.xs),
+                maxLines = 1,
+                softWrap = false,
+                modifier = Modifier.padding(horizontal = Spacing.xs, vertical = Spacing.xs),
             )
         }
         MacroRatioBar(

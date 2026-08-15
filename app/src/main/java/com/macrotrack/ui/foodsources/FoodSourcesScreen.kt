@@ -57,7 +57,7 @@ fun FoodSourcesScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Food Sources") },
+                title = { Text("Food databases") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -71,7 +71,7 @@ fun FoodSourcesScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            if (uiState.isLoadingCatalog) {
+            if (uiState.isLoadingCatalog && uiState.sources.isEmpty()) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
@@ -111,13 +111,20 @@ fun FoodSourcesScreen(
                 }
 
                 uiState.downloadError?.let { error ->
-                    Box(
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = Spacing.lg),
-                        contentAlignment = Alignment.Center
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(error, color = MaterialTheme.colorScheme.error)
+                        Text(
+                            error,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.weight(1f),
+                        )
+                        TextButton(onClick = viewModel::clearError) {
+                            Text("Dismiss")
+                        }
                     }
                 }
 

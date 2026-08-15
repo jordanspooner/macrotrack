@@ -13,7 +13,7 @@ import com.macrotrack.domain.usecase.food.LookupBarcodeUseCase
 import com.macrotrack.domain.usecase.food.SearchFoodUseCase
 import com.macrotrack.domain.usecase.log.AddLogEntryUseCase
 import com.macrotrack.domain.usecase.settings.GetSectionsUseCase
-import com.macrotrack.data.repository.FoodSourceRepository
+import com.macrotrack.data.repository.FoodRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
@@ -69,7 +69,7 @@ class AddViewModel @Inject constructor(
     private val addLogEntryUseCase: AddLogEntryUseCase,
     private val lookupBarcodeUseCase: LookupBarcodeUseCase,
     private val addUserFoodUseCase: AddUserFoodUseCase,
-    private val foodSourceRepository: FoodSourceRepository,
+    private val foodRepository: FoodRepository,
 ) : ViewModel() {
 
     private val initialDateIso: String =
@@ -112,9 +112,9 @@ class AddViewModel @Inject constructor(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    private val _hasFoodData: StateFlow<Boolean> = foodSourceRepository
-        .getNonUserSources()
-        .map { sources -> sources.isNotEmpty() }
+    private val _hasFoodData: StateFlow<Boolean> = foodRepository
+        .observeCount()
+        .map { count -> count > 0 }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     val uiState: StateFlow<AddUiState> = combine(
@@ -171,6 +171,17 @@ class AddViewModel @Inject constructor(
     fun selectFood(food: FoodItem) {
         _pendingFood.value = food
         _message.value = null
+    }
+
+    /** Adds the food using its default serving without opening portion selection. */
+    fun quickAddFood(food: FoodItem) {
+        launchAdd(
+            food = food,
+            portionG = food.defaultPortionG ?: 100f,
+            portionLabel = food.defaultPortionLabel,
+        )
+        _query.value = ""
+        _message.value = "Added ${food.name}"
     }
 
     /** Confirms the portion and writes the log entry, then returns to search. */

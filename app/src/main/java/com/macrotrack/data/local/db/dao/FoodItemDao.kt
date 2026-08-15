@@ -33,6 +33,9 @@ interface FoodItemDao {
     @Query("SELECT COUNT(*) FROM food_items")
     suspend fun count(): Int
 
+    @Query("SELECT COUNT(*) FROM food_items")
+    fun observeCount(): Flow<Int>
+
     @Query("SELECT COUNT(*) FROM food_items WHERE source = 'USER'")
     suspend fun countUserFoods(): Int
 

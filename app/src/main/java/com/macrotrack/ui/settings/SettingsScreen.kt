@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
@@ -83,6 +84,7 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
+    onNavigateToFoodSources: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -135,6 +137,35 @@ fun SettingsScreen(
             ),
             verticalArrangement = Arrangement.spacedBy(Spacing.lg),
         ) {
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                    shape = MaterialTheme.shapes.medium,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Column(modifier = Modifier.padding(Spacing.lg)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Storage, contentDescription = null)
+                            Spacer(Modifier.width(Spacing.sm))
+                            Text("Food databases", style = MaterialTheme.typography.titleMedium)
+                        }
+                        Spacer(Modifier.height(Spacing.xs))
+                        Text(
+                            "Install and manage searchable food databases and custom foods.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.height(Spacing.md))
+                        OutlinedButton(
+                            onClick = onNavigateToFoodSources,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text("Manage food databases")
+                        }
+                    }
+                }
+            }
+
             // ===== Block 1: Daily Goals =====
             item {
                 CollapsibleSectionCard("Daily Goals") {

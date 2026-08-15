@@ -136,7 +136,7 @@ fun LogScreen(
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { paddingValues ->
-        if (uiState.isLoading || uiState.currentDay == null) {
+        if (uiState.isLoading && uiState.currentWeek.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -264,6 +264,8 @@ private fun LogContent(
         pageCount = { Int.MAX_VALUE },
     )
     var userDraggedWeekPager by remember { mutableStateOf(false) }
+    val latestSelectedDate = rememberUpdatedState(uiState.selectedDate)
+    val latestUserDraggedWeekPager = rememberUpdatedState(userDraggedWeekPager)
 
     LaunchedEffect(weekPagerState) {
         weekPagerState.interactionSource.interactions.collect { interaction ->
@@ -278,7 +280,7 @@ private fun LogContent(
             .distinctUntilChanged()
             .collect { page ->
                 val date = dateForPage(page)
-                if (date != uiState.selectedDate) {
+                if (date != latestSelectedDate.value) {
                     viewModel.onDateSelected(date)
                 }
             }
@@ -293,7 +295,24 @@ private fun LogContent(
         }
     }
 
-    LaunchedEffect(weekPagerState, uiState.selectedDate) {
+    LaunchedEffect(weekPagerState) {
+        snapshotFlow { weekPagerState.settledPage }
+            .distinctUntilChanged()
+            .collect { page ->
+                val target = weekPageForDate(latestSelectedDate.value)
+                val delta = weekNavigationDelta(
+                    settledPage = page,
+                    targetWeekPage = target,
+                    userSwiped = latestUserDraggedWeekPager.value,
+                )
+                userDraggedWeekPager = false
+                if (delta != 0L) {
+                    viewModel.onDateSelected(latestSelectedDate.value.plusWeeks(delta))
+                }
+            }
+    }
+
+    LaunchedEffect(uiState.selectedDate) {
         val target = weekPageForDate(uiState.selectedDate)
         val current = weekPagerState.currentPage
         if (current != target) {
@@ -303,15 +322,6 @@ private fun LogContent(
                 else -> weekPagerState.scrollToPage(target)
             }
         }
-        snapshotFlow { weekPagerState.settledPage }
-            .distinctUntilChanged()
-            .collect { page ->
-                val delta = weekNavigationDelta(page, target, userDraggedWeekPager)
-                userDraggedWeekPager = false
-                if (delta != 0L) {
-                    viewModel.onDateSelected(uiState.selectedDate.plusWeeks(delta))
-                }
-            }
     }
 
     Column(
@@ -321,7 +331,7 @@ private fun LogContent(
     ) {
         HorizontalPager(
             state = weekPagerState,
-            beyondViewportPageCount = 0,
+            beyondViewportPageCount = 1,
             flingBehavior = PagerDefaults.flingBehavior(
                 state = weekPagerState,
                 pagerSnapDistance = PagerSnapDistance.atMost(1),
@@ -339,7 +349,7 @@ private fun LogContent(
 
         HorizontalPager(
             state = contentPagerState,
-            beyondViewportPageCount = 0,
+            beyondViewportPageCount = 1,
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f),
@@ -354,6 +364,13 @@ private fun LogContent(
                     onEditEntry = onEditEntry,
                     onNavigateToAddFood = onNavigateToAddFood,
                 )
+            } else {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                }
             }
         }
     }
@@ -420,6 +437,17 @@ private fun DayContentPage(
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                            Spacer(modifier = Modifier.height(Spacing.md))
+                            val defaultId = defaultSectionId(dayContent.sections.map { it.section })
+                            val dateIso = dayContent.date.format(DateTimeFormatter.ISO_LOCAL_DATE)
+                            OutlinedButton(
+                                onClick = { onNavigateToAddFood(defaultId, dateIso, "search") },
+                                shape = MacroTrackPillShape,
+                            ) {
+                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(Spacing.xs))
+                                Text("Add food")
+                            }
                         }
                     }
                 }
@@ -575,9 +603,7 @@ private fun DestinationPickerBar(
 ) {
     var showCalendar by remember { mutableStateOf(false) }
     val today = LocalDate.now()
-    val yesterday = today.minusDays(1)
-    val tomorrow = today.plusDays(1)
-    val targetDates = listOf(yesterday, today, tomorrow)
+    val targetDates = destinationDatesFor(selectedDate)
     var pickedDate by remember { mutableStateOf<LocalDate?>(null) }
 
     Surface(
@@ -614,12 +640,7 @@ private fun DestinationPickerBar(
                 horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
                 targetDates.forEach { date ->
-                    val label = when (date) {
-                        yesterday -> "Yesterday"
-                        today -> "Today"
-                        tomorrow -> "Tomorrow"
-                        else -> date.format(DateTimeFormatter.ofPattern("MMM d"))
-                    }
+                    val label = destinationChipLabel(date, selectedDate, today)
                     val isSelected = pickedDate == date
                     val isEnabled = !(action is Action.Move && date == selectedDate)
                     FilterChip(
@@ -639,12 +660,7 @@ private fun DestinationPickerBar(
             val destination = pickedDate
             val canConfirm = destination != null
             val confirmLabel = if (destination != null) {
-                val dateLabel = when (destination) {
-                    yesterday -> "yesterday"
-                    today -> "today"
-                    tomorrow -> "tomorrow"
-                    else -> destination.format(DateTimeFormatter.ofPattern("EEE, MMM d"))
-                }
+                val dateLabel = destinationConfirmationLabel(destination, selectedDate, today)
                 val verb = if (action is Action.Copy) "Copy" else "Move"
                 "$verb $selectedCount → $dateLabel"
             } else {
@@ -668,7 +684,7 @@ private fun DestinationPickerBar(
 
     if (showCalendar) {
         CalendarModal(
-            selectedDate = selectedDate,
+            selectedDate = pickedDate ?: selectedDate,
             onDateSelected = { date ->
                 pickedDate = date
                 showCalendar = false
@@ -676,4 +692,42 @@ private fun DestinationPickerBar(
             onDismiss = { showCalendar = false },
         )
     }
+}
+
+internal fun destinationDatesFor(selectedDate: LocalDate): List<LocalDate> = listOf(
+    selectedDate.minusDays(1),
+    selectedDate,
+    selectedDate.plusDays(1),
+)
+
+internal fun destinationChipLabel(
+    date: LocalDate,
+    selectedDate: LocalDate,
+    today: LocalDate,
+): String {
+    if (selectedDate == today) {
+        return when (date) {
+            today.minusDays(1) -> "Yesterday"
+            today -> "Today"
+            today.plusDays(1) -> "Tomorrow"
+            else -> date.format(DateTimeFormatter.ofPattern("MMM d"))
+        }
+    }
+    return date.format(DateTimeFormatter.ofPattern("MMM d"))
+}
+
+internal fun destinationConfirmationLabel(
+    date: LocalDate,
+    selectedDate: LocalDate,
+    today: LocalDate,
+): String {
+    if (selectedDate == today) {
+        return when (date) {
+            today.minusDays(1) -> "yesterday"
+            today -> "today"
+            today.plusDays(1) -> "tomorrow"
+            else -> date.format(DateTimeFormatter.ofPattern("EEE, MMM d"))
+        }
+    }
+    return date.format(DateTimeFormatter.ofPattern("EEE, MMM d"))
 }

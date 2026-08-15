@@ -58,6 +58,10 @@ class FoodRepositoryImpl @Inject constructor(
         return foodItemDao.countUserFoods()
     }
 
+    override fun observeCount(): Flow<Int> {
+        return foodItemDao.observeCount()
+    }
+
     override suspend fun updateUserFood(food: FoodItem) {
         foodItemDao.update(food.toEntity())
     }

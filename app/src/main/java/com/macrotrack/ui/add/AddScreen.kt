@@ -157,6 +157,7 @@ fun AddScreen(
                             uiState = uiState,
                             onQueryChanged = viewModel::onQueryChanged,
                             onFoodSelected = viewModel::selectFood,
+                            onFoodQuickAdd = viewModel::quickAddFood,
                             onQuickAddClick = { viewModel.setMode(AddMode.QUICK_ADD) },
                             onManageFoodSources = onNavigateToFoodSources,
                             onEditFood = onEditFood

@@ -14,6 +14,7 @@ interface FoodRepository {
     suspend fun deleteByDataSource(sourceId: String)
     suspend fun countByDataSource(sourceId: String): Int
     suspend fun countUserFoods(): Int
+    fun observeCount(): Flow<Int>
     suspend fun updateUserFood(food: FoodItem)
     suspend fun deleteUserFood(id: Long)
     suspend fun count(): Int
