@@ -44,9 +44,38 @@ interface LogEntryDao {
     @Query("SELECT DISTINCT foodItemId FROM log_entries WHERE foodItemId IS NOT NULL")
     fun getLoggedFoodIds(): Flow<List<Long>>
 
+    /**
+     * Per-food usage statistics: overall count / most-recent [createdAt] plus
+     * the same figures scoped to [sectionId]. Only rows with a [foodItemId]
+     * that is among [candidateIds] are considered, so the aggregation is
+     * bounded to the current search candidates instead of the whole log.
+     * Read-only aggregation — no schema changes.
+     */
+    @Query(
+        """
+        SELECT foodItemId,
+               COUNT(*) AS overallCount,
+               MAX(createdAt) AS overallRecentCreatedAt,
+               COALESCE(SUM(CASE WHEN sectionId = :sectionId THEN 1 ELSE 0 END), 0) AS sectionCount,
+               MAX(CASE WHEN sectionId = :sectionId THEN createdAt END) AS sectionRecentCreatedAt
+        FROM log_entries
+        WHERE foodItemId IS NOT NULL AND foodItemId IN (:candidateIds)
+        GROUP BY foodItemId
+        """
+    )
+    fun getFoodUsageStats(sectionId: Long, candidateIds: List<Long>): Flow<List<FoodUsageStatsRow>>
+
     @Query("SELECT date, SUM(kcal) AS kcal, SUM(protein) AS protein, SUM(carbs) AS carbs, SUM(fat) AS fat FROM log_entries WHERE date BETWEEN :from AND :to GROUP BY date")
     fun getMacrosByDateRange(from: String, to: String): Flow<List<DailyMacroRow>>
 }
+
+data class FoodUsageStatsRow(
+    val foodItemId: Long,
+    val overallCount: Int,
+    val overallRecentCreatedAt: Long?,
+    val sectionCount: Int,
+    val sectionRecentCreatedAt: Long?,
+)
 
 data class DailyMacroRow(
     val date: String,
