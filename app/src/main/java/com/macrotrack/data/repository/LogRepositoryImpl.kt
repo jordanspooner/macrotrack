@@ -4,6 +4,7 @@ import com.macrotrack.data.local.db.dao.DailyMacroRow
 import com.macrotrack.data.local.db.dao.LogEntryDao
 import com.macrotrack.data.mapper.toDomain
 import com.macrotrack.data.mapper.toEntity
+import com.macrotrack.domain.model.FoodUsageStats
 import com.macrotrack.domain.model.LogEntry
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -64,5 +65,10 @@ class LogRepositoryImpl @Inject constructor(
 
     override fun getLoggedFoodIds(): Flow<List<Long>> {
         return logEntryDao.getLoggedFoodIds()
+    }
+
+    override fun getFoodUsageStats(sectionId: Long, candidateIds: List<Long>): Flow<List<FoodUsageStats>> {
+        return logEntryDao.getFoodUsageStats(sectionId, candidateIds)
+            .map { rows -> rows.map { it.toDomain() } }
     }
 }

@@ -46,6 +46,10 @@ androidx-room-runtime = { group = "androidx.room", name = "room-runtime", versio
 androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
 androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
 
+# SQLite driver: bundles a modern SQLite (FTS5 + trigram tokenizer) instead of
+# relying on the device's framework SQLite version.
+androidx-sqlite-bundled = { group = "androidx.sqlite", name = "sqlite-bundled", version = "2.6.2" }
+
 # Hilt
 hilt-android = { group = "com.google.dagger", name = "hilt-android", version.ref = "hilt" }
 hilt-android-compiler = { group = "com.google.dagger", name = "hilt-android-compiler", version.ref = "hilt" }
@@ -83,6 +87,10 @@ okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhtt
 
 # Kotlin Serialization
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
+
+# JVM SQLite for unit-testing the FTS5 index SQL (bundles FTS5 + trigram
+# tokenizer, including the trigram `remove_diacritics` option added in 3.45)
+sqlite-jdbc = { group = "org.xerial", name = "sqlite-jdbc", version = "3.53.2.1" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

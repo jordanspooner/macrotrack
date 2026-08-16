@@ -1,11 +1,13 @@
 package com.macrotrack.data.repository
 
+import com.macrotrack.data.local.db.FuzzyQueryFormatter
 import com.macrotrack.data.local.db.dao.FoodItemDao
 import com.macrotrack.data.mapper.toDomain
 import com.macrotrack.data.mapper.toEntity
 import com.macrotrack.domain.model.FoodItem
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 
 class FoodRepositoryImpl @Inject constructor(
@@ -13,6 +15,14 @@ class FoodRepositoryImpl @Inject constructor(
 ) : FoodRepository {
     override fun searchFts(query: String): Flow<List<FoodItem>> {
         return foodItemDao.searchFoods(query).map { entities ->
+            entities.map { it.toDomain() }
+        }
+    }
+
+    override fun searchFtsFuzzy(query: String): Flow<List<FoodItem>> {
+        val ftsQuery = FuzzyQueryFormatter.format(query)
+            ?: return flowOf(emptyList())
+        return foodItemDao.searchFoodsFuzzy(ftsQuery).map { entities ->
             entities.map { it.toDomain() }
         }
     }
@@ -25,6 +35,14 @@ class FoodRepositoryImpl @Inject constructor(
 
     override fun searchUserFoods(query: String): Flow<List<FoodItem>> {
         return foodItemDao.searchUserFoods(query).map { entities ->
+            entities.map { it.toDomain() }
+        }
+    }
+
+    override fun searchUserFoodsFuzzy(query: String): Flow<List<FoodItem>> {
+        val ftsQuery = FuzzyQueryFormatter.format(query)
+            ?: return flowOf(emptyList())
+        return foodItemDao.searchUserFoodsFuzzy(ftsQuery).map { entities ->
             entities.map { it.toDomain() }
         }
     }
