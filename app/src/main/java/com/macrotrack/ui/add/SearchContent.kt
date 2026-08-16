@@ -53,28 +53,36 @@ fun SearchContent(
     onFoodQuickAdd: (FoodItem) -> Unit = {},
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
-        OutlinedTextField(
-            value = uiState.query,
-            onValueChange = onQueryChanged,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = Spacing.lg, vertical = Spacing.sm),
-            placeholder = { Text("Search foods…") },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-            trailingIcon = if (uiState.query.isNotEmpty()) {
-                {
-                    IconButton(onClick = { onQueryChanged("") }) {
-                        Icon(Icons.Default.Close, contentDescription = "Clear search")
+        if (uiState.hasFoodData) {
+            OutlinedTextField(
+                value = uiState.query,
+                onValueChange = onQueryChanged,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = Spacing.lg, vertical = Spacing.sm),
+                placeholder = { Text("Search foods…") },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                trailingIcon = if (uiState.query.isNotEmpty()) {
+                    {
+                        IconButton(onClick = { onQueryChanged("") }) {
+                            Icon(Icons.Default.Close, contentDescription = "Clear search")
+                        }
                     }
-                }
-            } else {
-                null
-            },
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-            singleLine = true,
-        )
+                } else {
+                    null
+                },
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                singleLine = true,
+            )
+        }
 
         when {
+            !uiState.hasFoodData -> {
+                NoFoodDataState(
+                    onQuickAddClick = onQuickAddClick,
+                    onManageFoodSources = onManageFoodSources,
+                )
+            }
             uiState.results.isNotEmpty() -> {
                 if (uiState.query.isBlank()) {
                     Text(
@@ -98,15 +106,10 @@ fun SearchContent(
                             onClick = { onFoodSelected(food) },
                             onEdit = if (food.source == Source.USER) { { onEditFood(food.id) } } else null,
                             onQuickAdd = { onFoodQuickAdd(food) },
+                            lastPortionG = uiState.lastPortions[food.id],
                         )
                     }
                 }
-            }
-            !uiState.hasFoodData -> {
-                NoFoodDataState(
-                    onQuickAddClick = onQuickAddClick,
-                    onManageFoodSources = onManageFoodSources,
-                )
             }
             uiState.query.isBlank() -> {
                 SearchEmptyState(
@@ -202,8 +205,9 @@ fun FoodResultItem(
     onClick: () -> Unit,
     onEdit: (() -> Unit)? = null,
     onQuickAdd: (() -> Unit)? = null,
+    lastPortionG: Float? = null,
 ) {
-    val portionG = food.defaultPortionG ?: 100f
+    val portionG = lastPortionG?.takeIf { it > 0f } ?: food.defaultPortionG ?: 100f
     val portioned = food.macroPer100g * (portionG / 100f)
     val portionText = buildString {
         append("${portionG.toInt()}g")

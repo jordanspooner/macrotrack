@@ -457,6 +457,8 @@ private fun DayContentPage(
                         SectionHeader(
                             name = sectionWithEntries.section.name,
                             totalMacros = sectionWithEntries.totalMacros,
+                            goalMacros = sectionWithEntries.goalMacros,
+                            hasEntries = sectionWithEntries.entries.isNotEmpty(),
                             isExpanded = sectionWithEntries.isExpanded,
                             onToggleExpand = { onToggleSectionExpanded(sectionWithEntries.section.id) }
                         )

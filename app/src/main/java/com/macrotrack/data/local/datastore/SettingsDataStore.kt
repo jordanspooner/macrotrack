@@ -11,4 +11,5 @@ object SettingsKeys {
     val FAT_GOAL_G = intPreferencesKey("fat_goal_g")         // default: 65
     val SECTION_GOALS_ENABLED = booleanPreferencesKey("section_goals_enabled")
     val SECTION_GOAL_DISTRIBUTION = stringPreferencesKey("section_goal_distribution") // JSON string
+    val LAST_PORTION_MAP = stringPreferencesKey("last_portion_map") // JSON: {"foodId": portionG, ...}
 }

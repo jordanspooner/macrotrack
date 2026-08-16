@@ -24,12 +24,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.macrotrack.domain.model.FoodItem
@@ -46,7 +46,8 @@ fun PortionSizeScreen(
     food: FoodItem,
     sectionName: String,
     onConfirm: (portionG: Float, portionLabel: String?) -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    lastPortionG: Float? = null,
 ) {
     Scaffold(
         topBar = {
@@ -63,7 +64,7 @@ fun PortionSizeScreen(
         PortionSizeContent(
             food = food,
             confirmLabel = "Add to $sectionName · ",
-            initialPortionG = null,
+            initialPortionG = lastPortionG?.takeIf { it > 0f },
             initialPortionLabel = null,
             onConfirm = onConfirm,
             modifier = Modifier.padding(padding),
@@ -84,9 +85,10 @@ fun PortionSizeContent(
     val defaultPortionG = initialPortionG ?: food.defaultPortionG ?: 100f
     val defaultLabel = initialPortionLabel ?: food.defaultPortionLabel
 
-    var portionG by remember { mutableFloatStateOf(defaultPortionG) }
+    var portionText by remember { mutableStateOf(formatPortionG(defaultPortionG)) }
     var selectedMult by remember { mutableStateOf<Float?>(if (initialPortionG == null) 1f else null) }
 
+    val portionG = parsePortionG(portionText)
     val portioned = food.macroPer100g * (portionG / 100f)
 
     val servingInfo = buildString {
@@ -139,7 +141,7 @@ fun PortionSizeContent(
                     FilterChip(
                         selected = selectedMult == mult,
                         onClick = {
-                            portionG = defaultPortionG * mult
+                            portionText = formatPortionG(defaultPortionG * mult)
                             selectedMult = mult
                         },
                         label = { Text(label) },
@@ -154,27 +156,35 @@ fun PortionSizeContent(
         }
 
         OutlinedTextField(
-            value = if (portionG % 1 == 0f) portionG.toInt().toString() else portionG.toString(),
+            value = portionText,
             onValueChange = {
-                val v = it.filter { c -> c.isDigit() || c == '.' }.toFloatOrNull()
-                if (v != null && v > 0f) {
-                    portionG = v
-                    selectedMult = null
-                }
+                portionText = it.filter { c -> c.isDigit() || c == '.' }
+                selectedMult = null
             },
             label = { Text("Custom amount (g)") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             singleLine = true,
-            modifier = Modifier.fillMaxWidth(0.7f)
+            modifier = Modifier
+                .fillMaxWidth(0.7f)
+                .onFocusChanged { if (it.isFocused) { portionText = ""; selectedMult = null } }
         )
 
         SaveButton(
             hasChanges = true,
-            label = "$confirmLabel${portioned.kcal.toInt()} kcal",
+            enabled = portionG > 0f,
+            label = if (portionG > 0f) "$confirmLabel${portioned.kcal.toInt()} kcal" else "Enter portion size",
             onClick = {
-                val label = if (portionG == defaultPortionG) defaultLabel else null
-                onConfirm(portionG, label)
+                if (portionG > 0f) {
+                    val label = if (portionG == defaultPortionG) defaultLabel else null
+                    onConfirm(portionG, label)
+                }
             }
         )
     }
 }
+
+internal fun formatPortionG(portionG: Float): String =
+    if (portionG % 1f == 0f) portionG.toInt().toString() else portionG.toString()
+
+internal fun parsePortionG(text: String): Float =
+    text.toFloatOrNull()?.takeIf { it > 0f } ?: 0f

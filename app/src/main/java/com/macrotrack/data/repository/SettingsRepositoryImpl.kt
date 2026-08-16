@@ -54,4 +54,39 @@ class SettingsRepositoryImpl @Inject constructor(
             prefs[SettingsKeys.SECTION_GOAL_DISTRIBUTION] = json
         }
     }
+
+    override fun getLastPortions(): Flow<Map<Long, Float>> {
+        return dataStore.data.map { prefs ->
+            parseLastPortions(prefs[SettingsKeys.LAST_PORTION_MAP])
+        }
+    }
+
+    override suspend fun setLastPortion(foodId: Long, portionG: Float) {
+        dataStore.edit { prefs ->
+            val current = parseLastPortions(prefs[SettingsKeys.LAST_PORTION_MAP]).toMutableMap()
+            current[foodId] = portionG
+            prefs[SettingsKeys.LAST_PORTION_MAP] = serializeLastPortions(current)
+        }
+    }
+
+    private fun parseLastPortions(json: String?): Map<Long, Float> {
+        if (json.isNullOrBlank()) return emptyMap()
+        val result = mutableMapOf<Long, Float>()
+        val trimmed = json.trim().removeSurrounding("{", "}")
+        if (trimmed.isBlank()) return result
+        for (part in trimmed.split(",")) {
+            val kv = part.trim().split(":")
+            if (kv.size == 2) {
+                val id = kv[0].trim().removeSurrounding("\"").toLongOrNull()
+                val value = kv[1].trim().toFloatOrNull()
+                if (id != null && value != null) result[id] = value
+            }
+        }
+        return result
+    }
+
+    private fun serializeLastPortions(map: Map<Long, Float>): String {
+        if (map.isEmpty()) return "{}"
+        return "{" + map.entries.joinToString(",") { (id, v) -> "\"$id\":$v" } + "}"
+    }
 }
