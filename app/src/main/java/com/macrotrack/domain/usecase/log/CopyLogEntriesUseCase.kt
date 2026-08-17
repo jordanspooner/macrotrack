@@ -14,6 +14,7 @@ class CopyLogEntriesUseCase @Inject constructor(
         targetDate: LocalDate,
         targetSectionId: Long? = null
     ) {
+        if (entries.isEmpty()) return
         val now = Instant.now()
         val copiedEntries = entries.map { entry ->
             entry.copy(
@@ -23,6 +24,6 @@ class CopyLogEntriesUseCase @Inject constructor(
                 createdAt = now
             )
         }
-        logRepository.insertAll(copiedEntries)
+        logRepository.insertAllAtEnd(copiedEntries)
     }
 }

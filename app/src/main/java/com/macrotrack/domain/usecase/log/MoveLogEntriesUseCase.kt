@@ -13,12 +13,18 @@ class MoveLogEntriesUseCase @Inject constructor(
         targetDate: LocalDate,
         targetSectionId: Long? = null
     ) {
-        val movedEntries = entries.map { entry ->
+        if (entries.isEmpty()) return
+        val movedEntries = entries.filter { entry ->
+            val sectionId = targetSectionId ?: entry.sectionId
+            entry.date != targetDate || entry.sectionId != sectionId
+        }
+        if (movedEntries.isEmpty()) return // Moving within the same (date, section) is a no-op
+        val transformed = movedEntries.map { entry ->
             entry.copy(
                 date = targetDate,
                 sectionId = targetSectionId ?: entry.sectionId
             )
         }
-        logRepository.updateAll(movedEntries)
+        logRepository.updateAllAtEnd(transformed)
     }
 }

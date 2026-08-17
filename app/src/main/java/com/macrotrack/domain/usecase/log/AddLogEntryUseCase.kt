@@ -20,7 +20,17 @@ class AddLogEntryUseCase @Inject constructor(
     ): Long {
         val ratio = portionG / 100f
         val macrosForPortion = food.macroPer100g * ratio
-        
+
+        // Ignore the caller-provided sortOrder (currently hardcoded to 0 by the
+        // UI) and append after existing entries so new adds stay compatible
+        // with copy/move appending and keep unique, stable sort orders.
+        val nextSortOrder = logRepository.getLogEntriesByDateOnce(date)
+            .asSequence()
+            .filter { it.sectionId == sectionId }
+            .maxOfOrNull { it.sortOrder }
+            ?.let { it + 1 }
+            ?: 0
+
         val entry = LogEntry(
             date = date,
             sectionId = sectionId,
@@ -30,7 +40,7 @@ class AddLogEntryUseCase @Inject constructor(
             portionG = portionG,
             portionLabel = portionLabel,
             macros = macrosForPortion,
-            sortOrder = sortOrder,
+            sortOrder = nextSortOrder,
             createdAt = Instant.now()
         )
         return logRepository.insert(entry)
