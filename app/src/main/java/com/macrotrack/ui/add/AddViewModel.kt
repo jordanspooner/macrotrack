@@ -103,6 +103,11 @@ class AddViewModel @Inject constructor(
     private val _sections: StateFlow<List<Section>> = getSectionsUseCase()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    private val _hasFoodData: StateFlow<Boolean> = foodRepository
+        .observeCount()
+        .map { count -> count > 0 }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
     @OptIn(ExperimentalCoroutinesApi::class)
     private val _results: StateFlow<List<FoodItem>> = _query
         .debounce(300)
@@ -116,11 +121,6 @@ class AddViewModel @Inject constructor(
             }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    private val _hasFoodData: StateFlow<Boolean> = foodRepository
-        .observeCount()
-        .map { count -> count > 0 }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     private val _lastPortions: StateFlow<Map<Long, Float>> = settingsRepository
         .getLastPortions()

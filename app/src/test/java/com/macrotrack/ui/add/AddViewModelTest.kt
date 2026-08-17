@@ -49,7 +49,7 @@ class AddViewModelTest {
         every { getSectionsUseCase() } returns flowOf(emptyList())
         every { foodRepository.observeCount() } returns flowOf(0)
         every { settingsRepository.getLastPortions() } returns flowOf(emptyMap())
-        every { searchFoodUseCase(any()) } returns flowOf(emptyList())
+        every { searchFoodUseCase(any(), any()) } returns flowOf(emptyList())
         coEvery { getRecommendationsUseCase.getRecommendations(any(), any()) } returns emptyList()
     }
 
@@ -82,7 +82,7 @@ class AddViewModelTest {
 
         assertTrue(states.any { !it.hasFoodData })
         assertEquals(emptyList<com.macrotrack.domain.model.FoodItem>(), states.last().results)
-        verify(exactly = 0) { searchFoodUseCase(any()) }
+        verify(exactly = 0) { searchFoodUseCase(any(), any()) }
         coVerify(exactly = 0) { getRecommendationsUseCase.getRecommendations(any(), any()) }
         collectJob.cancel()
     }
@@ -98,7 +98,7 @@ class AddViewModelTest {
 
         assertTrue(states.any { it.hasFoodData })
         coVerify(exactly = 1) { getRecommendationsUseCase.getRecommendations(any(), any()) }
-        verify(exactly = 0) { searchFoodUseCase(any()) }
+        verify(exactly = 0) { searchFoodUseCase(any(), any()) }
         collectJob.cancel()
     }
 
@@ -115,7 +115,7 @@ class AddViewModelTest {
         advanceUntilIdle()
 
         assertEquals("apple", states.last().query)
-        verify(exactly = 1) { searchFoodUseCase("apple") }
+        verify(exactly = 1) { searchFoodUseCase("apple", any()) }
         coVerify(exactly = 1) { getRecommendationsUseCase.getRecommendations(any(), any()) }
         collectJob.cancel()
     }
