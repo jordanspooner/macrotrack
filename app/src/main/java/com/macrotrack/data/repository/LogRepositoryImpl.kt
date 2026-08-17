@@ -1,7 +1,5 @@
 package com.macrotrack.data.repository
 
-import androidx.room.withTransaction
-import com.macrotrack.data.local.db.MacroTrackDatabase
 import com.macrotrack.data.local.db.dao.DailyMacroRow
 import com.macrotrack.data.local.db.dao.LogEntryDao
 import com.macrotrack.data.mapper.toDomain
@@ -15,17 +13,11 @@ import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 
 class LogRepositoryImpl @Inject constructor(
-    private val macroTrackDatabase: MacroTrackDatabase,
     private val logEntryDao: LogEntryDao
 ) : LogRepository {
     override fun getLogEntriesByDate(date: LocalDate): Flow<List<LogEntry>> {
         return logEntryDao.getLogEntriesByDate(date.format(DateTimeFormatter.ISO_LOCAL_DATE))
             .map { entities -> entities.map { it.toDomain() } }
-    }
-
-    override suspend fun getLogEntriesByDateOnce(date: LocalDate): List<LogEntry> {
-        return logEntryDao.getLogEntriesByDateOnce(date.format(DateTimeFormatter.ISO_LOCAL_DATE))
-            .map { it.toDomain() }
     }
 
     override fun getMacrosByDateRange(from: LocalDate, to: LocalDate): Flow<List<DailyMacroRow>> {
@@ -55,34 +47,6 @@ class LogRepositoryImpl @Inject constructor(
         logEntryDao.deleteLogEntries(entries.map { it.toEntity() })
     }
 
-    override suspend fun insertAllAtEnd(entries: List<LogEntry>) {
-        if (entries.isEmpty()) return
-        macroTrackDatabase.withTransaction {
-            insertAllAtEndInTransaction(entries)
-        }
-    }
-
-    override suspend fun updateAllAtEnd(entries: List<LogEntry>) {
-        if (entries.isEmpty()) return
-        macroTrackDatabase.withTransaction {
-            updateAllAtEndInTransaction(entries)
-        }
-    }
-
-    /** Transaction body for [insertAllAtEnd]; internal for unit testing without Room. */
-    internal suspend fun insertAllAtEndInTransaction(entries: List<LogEntry>) {
-        val existing = logEntryDao.getLogEntriesByDateOnce(entries.first().date.toIsoDate())
-        val appended = LogEntryOrdering.appendSortOrders(entries.map { it.toEntity() }, existing)
-        logEntryDao.insertAll(appended)
-    }
-
-    /** Transaction body for [updateAllAtEnd]; internal for unit testing without Room. */
-    internal suspend fun updateAllAtEndInTransaction(entries: List<LogEntry>) {
-        val existing = logEntryDao.getLogEntriesByDateOnce(entries.first().date.toIsoDate())
-        val appended = LogEntryOrdering.appendSortOrders(entries.map { it.toEntity() }, existing)
-        logEntryDao.updateAll(appended)
-    }
-
     override suspend fun getRecentFoodIds(sectionId: Long, limit: Int): List<Long> {
         return logEntryDao.getRecentFoodIds(sectionId, limit)
     }
@@ -108,5 +72,3 @@ class LogRepositoryImpl @Inject constructor(
             .map { rows -> rows.map { it.toDomain() } }
     }
 }
-
-private fun LocalDate.toIsoDate(): String = format(DateTimeFormatter.ISO_LOCAL_DATE)

@@ -2,7 +2,6 @@ package com.macrotrack.ui.log
 
 import java.time.LocalDate
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Test
 
 class WeekPagerNavigationTest {
@@ -35,38 +34,6 @@ class WeekPagerNavigationTest {
     @Test
     fun `swipe multiple weeks backward produces negative delta`() {
         assertEquals(-3L, weekNavigationDelta(settledPage = 2, targetWeekPage = 5, userSwiped = true))
-    }
-
-    @Test
-    fun `drag-active settle never navigates even with the swipe marker`() {
-        assertEquals(0L, weekNavigationDelta(settledPage = 6, targetWeekPage = 5, userSwiped = true, dragActive = true))
-        assertEquals(0L, weekNavigationDelta(settledPage = 8, targetWeekPage = 5, userSwiped = true, dragActive = true))
-    }
-
-    @Test
-    fun `drag-active settle with no swipe marker stays zero`() {
-        assertEquals(0L, weekNavigationDelta(settledPage = 6, targetWeekPage = 5, userSwiped = false, dragActive = true))
-    }
-
-    @Test
-    fun `day settle routes a genuine swipe to the settled page`() {
-        assertEquals(42, daySettleTargetPage(settledPage = 42, currentDayPage = 41, userSwiped = true, dragActive = false))
-    }
-
-    @Test
-    fun `day settle with same page produces no navigation`() {
-        assertNull(daySettleTargetPage(settledPage = 41, currentDayPage = 41, userSwiped = true, dragActive = false))
-    }
-
-    @Test
-    fun `day settle ignores programmatic scrolls`() {
-        assertNull(daySettleTargetPage(settledPage = 42, currentDayPage = 41, userSwiped = false, dragActive = false))
-    }
-
-    @Test
-    fun `day settle ignores drag auto-navigation settles`() {
-        assertNull(daySettleTargetPage(settledPage = 42, currentDayPage = 41, userSwiped = true, dragActive = true))
-        assertNull(daySettleTargetPage(settledPage = 42, currentDayPage = 41, userSwiped = false, dragActive = true))
     }
 
     @Test

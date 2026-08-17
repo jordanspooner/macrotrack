@@ -22,20 +22,17 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.scan
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeoutOrNull
 import java.time.LocalDate
 import java.time.format.TextStyle
 import java.util.Locale
 import javax.inject.Inject
-
-/** Upper bound for a single drop transaction so a hung DB op can never stall the UI. */
-private const val DROP_OPERATION_TIMEOUT_MILLIS = 4_000L
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
@@ -51,13 +48,8 @@ class LogViewModel @Inject constructor(
 ) : ViewModel() {
 
     private val _selectedDate = MutableStateFlow(LocalDate.now())
-    private val _displayedWeekStart = MutableStateFlow(mondayOf(LocalDate.now()))
     private val _selectionMode = MutableStateFlow<SelectionMode>(SelectionMode.Off)
     private val _collapsedSections = MutableStateFlow<Map<LocalDate, Set<Long>>>(emptyMap())
-    // Guards concurrent drag drops (drag drop + accessibility move) so two
-    // transactions can never stack on the same snapshot. Read/written only on
-    // the main thread (viewModelScope), so it stays a plain field.
-    private var dropOpInFlight = false
     private val sections: StateFlow<List<Section>> = getSectionsUseCase()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -81,27 +73,25 @@ class LogViewModel @Inject constructor(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
-    /** Re-query weekly macros only when the displayed week changes. */
-    private val weeklyRowsByDate: StateFlow<Map<String, DailyMacroRow>> = _displayedWeekStart
+    /** Re-query weekly macros only when the selected week changes. */
+    private val weeklyRowsByDate: StateFlow<Map<String, DailyMacroRow>> = _selectedDate
+        .map { date -> date.minusDays(date.dayOfWeek.value.toLong() - 1) }
+        .distinctUntilChanged()
         .flatMapLatest { weekStart ->
             getWeeklyMacrosUseCase(weekStart.minusDays(7), weekStart.plusDays(13))
                 .map { rows -> rows.associateBy { it.date } }
                 .onStart { emit(emptyMap()) }
-        }
-        .scan(emptyMap<String, DailyMacroRow>()) { cached, latest ->
-            cached + latest
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
     val uiState: StateFlow<LogUiState> = combine(
         combine(
             _selectedDate,
-            _displayedWeekStart,
             entriesByDate,
             sections,
             weeklyRowsByDate,
-) { date, displayedWeekStart, allEntries, sections, allWeeklyRows ->
-            Quadro(date, displayedWeekStart, allEntries, sections, allWeeklyRows.values.toList())
+        ) { date, allEntries, sections, allWeeklyRows ->
+            DayBlock(date, allEntries, sections, allWeeklyRows.values.toList())
         },
         combine(
             getSettingsUseCase(),
@@ -113,7 +103,6 @@ class LogViewModel @Inject constructor(
         }
     ) { data1, data2 ->
         val date = data1.date
-        val displayedWeekStart = data1.displayedWeekStart
         val prevEntries = data1.allEntries[date.minusDays(1)]
         val currEntries = data1.allEntries[date]
         val nextEntries = data1.allEntries[date.plusDays(1)]
@@ -134,13 +123,12 @@ class LogViewModel @Inject constructor(
             buildDayContent(date.plusDays(1), it, sections, goals, sectionGoals, collapsedMap)
         }
 
-        val currentWeek = buildWeekDates(displayedWeekStart, date, goals, allWeeklyRows)
-        val prevWeek = buildWeekDates(displayedWeekStart.minusWeeks(1), date, goals, allWeeklyRows)
-        val nextWeek = buildWeekDates(displayedWeekStart.plusWeeks(1), date, goals, allWeeklyRows)
+        val currentWeek = buildWeekDates(date, date, goals, allWeeklyRows)
+        val prevWeek = buildWeekDates(date.minusWeeks(1), date, goals, allWeeklyRows)
+        val nextWeek = buildWeekDates(date.plusWeeks(1), date, goals, allWeeklyRows)
 
         LogUiState(
             selectedDate = date,
-            displayedWeekStart = displayedWeekStart,
             prevDay = prevDay,
             currentDay = currentDay,
             nextDay = nextDay,
@@ -175,7 +163,7 @@ class LogViewModel @Inject constructor(
                 sectionEntries.fold(Macros(0f, 0f, 0f, 0f)) { acc, entry -> acc + entry.macros }
             SectionWithEntries(
                 section = section,
-                entries = sectionEntries.sortedWith(compareBy({ it.sortOrder }, { it.id })),
+                entries = sectionEntries.sortedBy { it.sortOrder },
                 totalMacros = sectionMacros,
                 isExpanded = !collapsed.contains(section.id),
                 goalMacros = sectionGoals.macroGoalFor(goals, section.id, sectionIds),
@@ -187,10 +175,6 @@ class LogViewModel @Inject constructor(
     fun onDateSelected(date: LocalDate) {
         if (_selectedDate.value != date) {
             _selectedDate.value = date
-        }
-        val monday = mondayOf(date)
-        if (_displayedWeekStart.value != monday) {
-            _displayedWeekStart.value = monday
         }
         _selectionMode.value = SelectionMode.Off
     }
@@ -208,52 +192,23 @@ class LogViewModel @Inject constructor(
     }
 
     fun toggleSelectionMode(entryId: Long) {
-        val entry = currentDayEntry(entryId) ?: return
-        toggleSelection(entry, _selectedDate.value)
-    }
-
-    /**
-     * Toggle selection for [entry] anchored at [sourceDate], resolving the entry
-     * directly instead of via the current day. Selecting with a different
-     * [sourceDate] while a selection is active starts a fresh selection there.
-     */
-    fun toggleSelection(entry: LogEntry, sourceDate: LocalDate): SelectionMode {
-        when (val currentMode = _selectionMode.value) {
-            SelectionMode.Off -> {
-                _selectionMode.value = SelectionMode.Selecting(
-                    sourceDate = sourceDate,
-                    selectedEntries = listOf(entry),
-                )
+        val currentMode = _selectionMode.value
+        if (currentMode is SelectionMode.Selecting) {
+            val newSelection = currentMode.selectedIds.toMutableSet()
+            if (newSelection.contains(entryId)) {
+                newSelection.remove(entryId)
+            } else {
+                newSelection.add(entryId)
             }
-            is SelectionMode.Selecting -> {
-                if (currentMode.sourceDate != sourceDate) {
-                    _selectionMode.value = SelectionMode.Selecting(
-                        sourceDate = sourceDate,
-                        selectedEntries = listOf(entry),
-                    )
-                } else {
-                    val newEntries = if (currentMode.selectedEntries.any { it.id == entry.id }) {
-                        currentMode.selectedEntries.filterNot { it.id == entry.id }
-                    } else {
-                        (currentMode.selectedEntries + entry)
-                            .sortedWith(compareBy({ it.sortOrder }, { it.id }))
-                    }
-                    _selectionMode.value = if (newEntries.isEmpty()) {
-                        SelectionMode.Off
-                    } else {
-                        currentMode.copy(selectedEntries = newEntries)
-                    }
-                }
+            if (newSelection.isEmpty()) {
+                _selectionMode.value = SelectionMode.Off
+            } else {
+                _selectionMode.value = SelectionMode.Selecting(newSelection)
             }
-            is SelectionMode.ChoosingDestination -> Unit
+        } else if (currentMode == SelectionMode.Off) {
+            _selectionMode.value = SelectionMode.Selecting(setOf(entryId))
         }
-        return _selectionMode.value
     }
-
-    private fun currentDayEntry(entryId: Long): LogEntry? =
-        currentDaySections().asSequence()
-            .flatMap { it.entries.asSequence() }
-            .find { it.id == entryId }
 
     fun exitSelectionMode() {
         _selectionMode.value = SelectionMode.Off
@@ -264,136 +219,41 @@ class LogViewModel @Inject constructor(
     }
 
     fun copySelectedEntries() {
-        val mode = _selectionMode.value as? SelectionMode.Selecting ?: return
-        _selectionMode.value = SelectionMode.ChoosingDestination(
-            sourceDate = mode.sourceDate,
-            selectedEntries = mode.selectedEntries,
-            action = Action.Copy,
-        )
+        val ids = (_selectionMode.value as? SelectionMode.Selecting)?.selectedIds ?: return
+        _selectionMode.value = SelectionMode.ChoosingDestination(ids, Action.Copy)
     }
 
-    /**
-     * Compatibility shim for the pre-drag UI: the Move button now enters the
-     * Copy destination flow. Real moves are driven by [moveDraggedEntries].
-     */
-    @Deprecated("Move selection is replaced by drag; use moveDraggedEntries")
     fun moveSelectedEntries() {
-        val mode = _selectionMode.value as? SelectionMode.Selecting ?: return
-        _selectionMode.value = SelectionMode.ChoosingDestination(
-            sourceDate = mode.sourceDate,
-            selectedEntries = mode.selectedEntries,
-            action = Action.Copy,
-        )
-    }
-
-    fun duplicateSelectedEntries() {
-        val mode = _selectionMode.value as? SelectionMode.Selecting ?: return
-        if (mode.selectedEntries.isEmpty()) return
-        viewModelScope.launch {
-            copyLogEntriesUseCase(mode.selectedEntries, mode.sourceDate)
-        }
+        val ids = (_selectionMode.value as? SelectionMode.Selecting)?.selectedIds ?: return
+        _selectionMode.value = SelectionMode.ChoosingDestination(ids, Action.Move)
     }
 
     fun deleteSelectedEntries() {
-        val mode = _selectionMode.value as? SelectionMode.Selecting ?: return
-        if (mode.selectedEntries.isEmpty()) return
+        val ids = (_selectionMode.value as? SelectionMode.Selecting)?.selectedIds ?: return
+        val entries = currentDaySections().flatMap { it.entries }.filter { it.id in ids }
+        if (entries.isEmpty()) return
         viewModelScope.launch {
-            deleteLogEntriesUseCase(mode.selectedEntries)
+            deleteLogEntriesUseCase(entries)
             exitSelectionMode()
         }
     }
 
     fun confirmCopyMove(targetDate: LocalDate) {
         val mode = _selectionMode.value as? SelectionMode.ChoosingDestination ?: return
-        if (mode.selectedEntries.isEmpty()) return
+        val entries = currentDaySections().flatMap { it.entries }.filter { it.id in mode.selectedIds }
+        if (entries.isEmpty()) return
         viewModelScope.launch {
             when (mode.action) {
-                Action.Copy -> copyLogEntriesUseCase(mode.selectedEntries, targetDate)
-                // Never produced: moves are handled by the drag path.
-                Action.Move -> error("Move is not a selection action")
+                Action.Copy -> copyLogEntriesUseCase(entries, targetDate)
+                Action.Move -> moveLogEntriesUseCase(entries, targetDate)
             }
-            _selectionMode.value = SelectionMode.Selecting(
-                sourceDate = mode.sourceDate,
-                selectedEntries = mode.selectedEntries,
-            )
+            _selectionMode.value = SelectionMode.Off
         }
     }
 
     fun cancelChoosingDestination() {
         val mode = _selectionMode.value as? SelectionMode.ChoosingDestination ?: return
-        _selectionMode.value = SelectionMode.Selecting(
-            sourceDate = mode.sourceDate,
-            selectedEntries = mode.selectedEntries,
-        )
-    }
-
-    /**
-     * Moves [entries] to [targetDate], clearing the selection once the mutation
-     * commits. A null [targetSectionId] — the date-bar (week strip) drop path —
-     * preserves each entry's own section, matching the "maintains the sections
-     * (if possible)" copy/move policy. A specific [targetSectionId] — the meal
-     * drop path — retargets every entry to that section.
-     */
-    fun moveDraggedEntries(entries: List<LogEntry>, targetDate: LocalDate, targetSectionId: Long? = null) {
-        if (entries.isEmpty()) return
-        val movesNothing = if (targetSectionId != null) {
-            entries.all { it.date == targetDate && it.sectionId == targetSectionId }
-        } else {
-            entries.all { it.date == targetDate }
-        }
-        if (movesNothing) return
-        if (dropOpInFlight) return
-        dropOpInFlight = true
-        viewModelScope.launch {
-            val completed = withTimeoutOrNull(DROP_OPERATION_TIMEOUT_MILLIS) {
-                moveLogEntriesUseCase(entries, targetDate, targetSectionId)
-                true
-            }
-            dropOpInFlight = false
-            // Clear selection only after the mutation committed. If the DB op
-            // timed out (never blocked the main thread), keep the selection so
-            // the user can retry rather than leaving a silently-failed drop.
-            if (completed == true) exitSelectionMode()
-        }
-    }
-
-    /**
-     * Advances the live selected date by [delta] days during a drag, preserving
-     * any active selection. Steps compound on the ViewModel's authoritative
-     * [_selectedDate] rather than a stale UI snapshot. Realigns
-     * [displayedWeekStart] only when the new date crosses into another week.
-     */
-    fun advanceDayDuringDrag(delta: Long) {
-        val current = _selectedDate.value
-        val next = current.plusDays(delta)
-        _selectedDate.value = next
-        if (mondayOf(current) != mondayOf(next)) {
-            _displayedWeekStart.value = mondayOf(next)
-        }
-    }
-
-    /**
-     * Compatibility wrapper for the pre-[advanceDayDuringDrag] drag UI. Prefer
-     * [advanceDayDuringDrag], which steps the ViewModel's live date; callers
-     * must not derive repeated steps from a stale UI date. Preserves selection
-     * and realigns the week anchor only when [date] crosses into another week.
-     */
-    fun navigateDuringDrag(date: LocalDate) {
-        val current = _selectedDate.value
-        if (current == date) return
-        _selectedDate.value = date
-        if (mondayOf(current) != mondayOf(date)) {
-            _displayedWeekStart.value = mondayOf(date)
-        }
-    }
-
-    /**
-     * Moves only the displayed week anchor by [weeks] during a drag. Keeps
-     * [selectedDate] and any active selection untouched, so the daily log
-     * never teleports while the week strip pages over the anchor.
-     */
-    fun navigateWeekDuringDrag(weeks: Long) {
-        _displayedWeekStart.value = _displayedWeekStart.value.plusWeeks(weeks)
+        _selectionMode.value = SelectionMode.Selecting(mode.selectedIds)
     }
 
     private fun computeDefaultCollapsed(
@@ -423,7 +283,7 @@ class LogViewModel @Inject constructor(
         weeklyRows: List<DailyMacroRow>,
     ): List<WeekDay> {
         val rowMap = weeklyRows.associateBy { it.date }
-        val startOfWeek = mondayOf(referenceDate)
+        val startOfWeek = referenceDate.minusDays(referenceDate.dayOfWeek.value.toLong() - 1)
         val today = LocalDate.now()
         val shares = macroGoalShares(goals.proteinG, goals.carbsG, goals.fatG)
 
@@ -447,9 +307,8 @@ class LogViewModel @Inject constructor(
         }
     }
 
-    private data class Quadro(
+    private data class DayBlock(
         val date: LocalDate,
-        val displayedWeekStart: LocalDate,
         val allEntries: Map<LocalDate, List<LogEntry>>,
         val sections: List<Section>,
         val allWeeklyRows: List<DailyMacroRow>,
