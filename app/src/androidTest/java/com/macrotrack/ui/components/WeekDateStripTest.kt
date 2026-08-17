@@ -208,6 +208,38 @@ class WeekDateStripTest {
             .assert(reportsTodayAndSelected(expectToday = true, expectSelected = true))
     }
 
+    @Test
+    fun draggingDayExposesMoveDescriptionInsteadOfReplacingItWithDayDescription() {
+        val today = LocalDate.now()
+        val target = weekStartingOn(today)[2]
+        val week = weekStartingOn(today).map { date ->
+            WeekDay(
+                date = date,
+                dayName = date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault()),
+                dayNumber = date.dayOfMonth,
+                isSelected = date == today,
+                isToday = date == today,
+            )
+        }
+        composeRule.setContent {
+            WeekDateStrip(
+                weekDays = week,
+                onDateSelected = {},
+                onOpenCalendar = {},
+                dragActive = true,
+                dragCount = 2,
+            )
+        }
+        composeRule.waitForIdle()
+
+        val expected = "Move 2 to ${target.format(DateTimeFormatter.ofPattern("EEE, MMM d"))}"
+        composeRule.onNodeWithTag("week-day-$target").assert(
+            SemanticsMatcher("exposes drag move description") {
+                it.config.getOrNull(SemanticsProperties.ContentDescription).orEmpty().contains(expected)
+            }
+        )
+    }
+
     private fun weekStartingOn(reference: LocalDate): List<LocalDate> {
         val start = reference.minusDays(reference.dayOfWeek.value.toLong() - 1)
         return (0L..6L).map { start.plusDays(it) }

@@ -11,8 +11,11 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface LogEntryDao {
-    @Query("SELECT * FROM log_entries WHERE date = :date ORDER BY sortOrder ASC")
+    @Query("SELECT * FROM log_entries WHERE date = :date ORDER BY sortOrder ASC, id ASC")
     fun getLogEntriesByDate(date: String): Flow<List<LogEntryEntity>>
+
+    @Query("SELECT * FROM log_entries WHERE date = :date ORDER BY sortOrder ASC, id ASC")
+    suspend fun getLogEntriesByDateOnce(date: String): List<LogEntryEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertLogEntry(entry: LogEntryEntity): Long

@@ -1,9 +1,11 @@
 package com.macrotrack.ui.components
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -15,6 +17,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -26,6 +29,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathMeasure
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -44,6 +49,7 @@ import com.macrotrack.ui.theme.macroFatOverageColor
 import com.macrotrack.ui.theme.macroProteinColor
 import com.macrotrack.ui.theme.macroProteinOverageColor
 import com.macrotrack.ui.theme.restingSurfaceColor
+import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.PI
@@ -52,12 +58,22 @@ import kotlin.math.min
 /** Corner radius used by the day-cell perimeter geometry. */
 private val DayCellCornerRadius = 16.dp
 
+/**
+ * Week strip with drag support: while a drag is active, day taps are disabled
+ * and days register as root-coordinate move targets, with the hovered day
+ * highlighting. Edge-driven week paging is handled by the drag gesture itself.
+ */
 @Composable
 fun WeekDateStrip(
     weekDays: List<WeekDay>,
     onDateSelected: (WeekDay) -> Unit,
     onOpenCalendar: () -> Unit,
     modifier: Modifier = Modifier,
+    dragActive: Boolean = false,
+    dragCount: Int = 0,
+    activeDragDate: LocalDate? = null,
+    onRegisterDayTarget: (LocalDate, Rect) -> Unit = { _, _ -> },
+    onUnregisterDayTarget: (LocalDate) -> Unit = {},
 ) {
     val firstDay = weekDays.firstOrNull() ?: return
     Surface(
@@ -70,7 +86,7 @@ fun WeekDateStrip(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { onOpenCalendar() }
+                    .clickable(enabled = !dragActive, onClick = { onOpenCalendar() })
                     .padding(vertical = Spacing.xs),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -91,14 +107,34 @@ fun WeekDateStrip(
                     .fillMaxWidth()
                     .padding(top = Spacing.xs),
             ) {
-                weekDays.forEach { DayItem(it, onClick = { onDateSelected(it) }, modifier = Modifier.weight(1f)) }
+                weekDays.forEach { day ->
+                    DayItem(
+                        day = day,
+                        onClick = { onDateSelected(day) },
+                        dragActive = dragActive,
+                        dragCount = dragCount,
+                        isActiveDropTarget = dragActive && activeDragDate == day.date,
+                        onRegisterBounds = { onRegisterDayTarget(day.date, it) },
+                        onUnregisterBounds = { onUnregisterDayTarget(day.date) },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
             }
         }
     }
 }
 
 @Composable
-private fun DayItem(day: WeekDay, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun DayItem(
+    day: WeekDay,
+    onClick: () -> Unit,
+    dragActive: Boolean,
+    dragCount: Int,
+    isActiveDropTarget: Boolean,
+    onRegisterBounds: (Rect) -> Unit,
+    onUnregisterBounds: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val isSelected = day.isSelected
     val isToday = day.isToday
     val numberColor = when {
@@ -106,14 +142,29 @@ private fun DayItem(day: WeekDay, onClick: () -> Unit, modifier: Modifier = Modi
         else -> MaterialTheme.colorScheme.onSurface
     }
     val cellShape = RoundedCornerShape(DayCellCornerRadius)
+    val containerColor by animateColorAsState(
+        targetValue = when {
+            isActiveDropTarget -> brandPrimary().copy(alpha = 0.3f)
+            isSelected -> brandPrimary().copy(alpha = 0.12f)
+            else -> Color.Transparent
+        },
+        animationSpec = tween(MotionTokens.medium),
+    )
+    val moveLabel = if (dragActive) {
+        "Move ${dragCount.coerceAtLeast(1)} to ${day.date.format(DateTimeFormatter.ofPattern("EEE, MMM d"))}"
+    } else {
+        null
+    }
 
     Box(
         modifier = modifier
             .clip(cellShape)
-            .clickable(onClick = onClick)
+            .background(containerColor)
+            .clickable(enabled = !dragActive, onClick = onClick)
+            .onGloballyPositioned { onRegisterBounds(it.boundsInRoot()) }
             .testTag("week-day-${day.date}")
             .semantics {
-                contentDescription = weekDayContentDescription(
+                contentDescription = moveLabel ?: weekDayContentDescription(
                     dayName = day.dayName,
                     dayNumber = day.dayNumber,
                     isToday = isToday,
@@ -164,6 +215,10 @@ private fun DayItem(day: WeekDay, onClick: () -> Unit, modifier: Modifier = Modi
                 }
             }
         }
+    }
+
+    DisposableEffect(day.date) {
+        onDispose(onUnregisterBounds)
     }
 }
 
