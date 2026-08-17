@@ -8,6 +8,7 @@ import org.junit.Test
 class WeekPagerMappingTest {
 
     private val selectedDate = LocalDate.of(2026, 8, 15)
+    private val displayedWeekStart = mondayOf(selectedDate)
 
     @Test
     fun `current week page returns currentWeek`() {
@@ -16,10 +17,8 @@ class WeekPagerMappingTest {
             currentWeek = weekDays(8),
             nextWeek = weekDays(15),
         )
-        val result = weekDaysForPage(weekPageForDate(selectedDate), uiState)
+        val result = weekDaysForPage(weekPageForDate(displayedWeekStart), uiState)
         assertEquals(uiState.currentWeek, result)
-        assertEquals(uiState.prevWeek, weekDaysForPage(weekPageForDate(selectedDate) - 1, uiState))
-        assertEquals(uiState.nextWeek, weekDaysForPage(weekPageForDate(selectedDate) + 1, uiState))
     }
 
     @Test
@@ -29,7 +28,7 @@ class WeekPagerMappingTest {
             currentWeek = weekDays(8),
             nextWeek = weekDays(15),
         )
-        val result = weekDaysForPage(weekPageForDate(selectedDate) - 1, uiState)
+        val result = weekDaysForPage(weekPageForDate(displayedWeekStart) - 1, uiState)
         assertEquals(uiState.prevWeek, result)
     }
 
@@ -40,7 +39,7 @@ class WeekPagerMappingTest {
             currentWeek = weekDays(8),
             nextWeek = weekDays(15),
         )
-        val result = weekDaysForPage(weekPageForDate(selectedDate) + 1, uiState)
+        val result = weekDaysForPage(weekPageForDate(displayedWeekStart) + 1, uiState)
         assertEquals(uiState.nextWeek, result)
     }
 
@@ -51,7 +50,7 @@ class WeekPagerMappingTest {
             currentWeek = weekDays(8),
             nextWeek = weekDays(15),
         )
-        assertNull(weekDaysForPage(weekPageForDate(selectedDate) + 2, uiState))
+        assertNull(weekDaysForPage(weekPageForDate(displayedWeekStart) + 2, uiState))
     }
 
     @Test
@@ -61,15 +60,32 @@ class WeekPagerMappingTest {
             currentWeek = weekDays(8),
             nextWeek = weekDays(15),
         )
-        assertNull(weekDaysForPage(weekPageForDate(selectedDate) - 2, uiState))
+        assertNull(weekDaysForPage(weekPageForDate(displayedWeekStart) - 2, uiState))
+    }
+
+    @Test
+    fun `mapping keys on displayedWeekStart not selectedDate`() {
+        val farWeekStart = displayedWeekStart.plusWeeks(3)
+        val uiState = uiState(
+            prevWeek = weekDays(1),
+            currentWeek = weekDays(8),
+            nextWeek = weekDays(15),
+            weekStart = farWeekStart,
+        )
+        assertEquals(uiState.currentWeek, weekDaysForPage(weekPageForDate(farWeekStart), uiState))
+        assertEquals(uiState.prevWeek, weekDaysForPage(weekPageForDate(farWeekStart) - 1, uiState))
+        assertEquals(uiState.nextWeek, weekDaysForPage(weekPageForDate(farWeekStart) + 1, uiState))
+        assertNull(weekDaysForPage(weekPageForDate(displayedWeekStart), uiState))
     }
 
     private fun uiState(
         prevWeek: List<WeekDay>,
         currentWeek: List<WeekDay>,
         nextWeek: List<WeekDay>,
+        weekStart: LocalDate? = null,
     ) = LogUiState(
         selectedDate = selectedDate,
+        displayedWeekStart = weekStart ?: displayedWeekStart,
         prevWeek = prevWeek,
         currentWeek = currentWeek,
         nextWeek = nextWeek,
