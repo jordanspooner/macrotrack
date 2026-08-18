@@ -8,6 +8,7 @@ import java.time.LocalDate
 interface LogRepository {
     fun getLogEntriesByDate(date: LocalDate): Flow<List<LogEntry>>
     fun getMacrosByDateRange(from: LocalDate, to: LocalDate): Flow<List<DailyMacroRow>>
+    suspend fun getMacrosByDateRangeOnce(from: LocalDate, to: LocalDate): List<DailyMacroRow>
     suspend fun insert(entry: LogEntry): Long
     suspend fun insertAll(entries: List<LogEntry>)
     suspend fun update(entry: LogEntry)

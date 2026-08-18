@@ -26,6 +26,13 @@ class LogRepositoryImpl @Inject constructor(
         )
     }
 
+    override suspend fun getMacrosByDateRangeOnce(from: LocalDate, to: LocalDate): List<DailyMacroRow> {
+        return logEntryDao.getMacrosByDateRangeOnce(
+            from = from.format(DateTimeFormatter.ISO_LOCAL_DATE),
+            to = to.format(DateTimeFormatter.ISO_LOCAL_DATE)
+        )
+    }
+
     override suspend fun insert(entry: LogEntry): Long {
         return logEntryDao.insertLogEntry(entry.toEntity())
     }

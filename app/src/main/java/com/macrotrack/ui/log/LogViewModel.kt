@@ -3,6 +3,8 @@ package com.macrotrack.ui.log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.macrotrack.data.local.db.dao.DailyMacroRow
+import com.macrotrack.domain.NoOpWidgetRefreshRequester
+import com.macrotrack.domain.WidgetRefreshRequester
 import com.macrotrack.domain.model.DailySummary
 import com.macrotrack.domain.model.LogEntry
 import com.macrotrack.domain.model.Macros
@@ -42,6 +44,7 @@ class LogViewModel @Inject constructor(
     private val copyLogEntriesUseCase: CopyLogEntriesUseCase,
     private val moveLogEntriesUseCase: MoveLogEntriesUseCase,
     private val getWeeklyMacrosUseCase: GetWeeklyMacrosUseCase,
+    private val widgetRefreshRequester: WidgetRefreshRequester = NoOpWidgetRefreshRequester,
 ) : ViewModel() {
 
     private val _selectedDate = MutableStateFlow(LocalDate.now())
@@ -224,6 +227,7 @@ class LogViewModel @Inject constructor(
         if (entries.isEmpty()) return
         viewModelScope.launch {
             deleteLogEntriesUseCase(entries)
+            widgetRefreshRequester.requestUpdate()
             exitSelectionMode()
         }
     }
@@ -237,6 +241,7 @@ class LogViewModel @Inject constructor(
                 Action.Copy -> copyLogEntriesUseCase(entries, targetDate)
                 Action.Move -> moveLogEntriesUseCase(entries, targetDate)
             }
+            widgetRefreshRequester.requestUpdate()
             _selectionMode.value = SelectionMode.Off
         }
     }

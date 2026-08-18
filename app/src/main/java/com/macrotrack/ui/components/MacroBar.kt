@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.macrotrack.domain.model.macroProgressSegments
 import com.macrotrack.ui.theme.MotionTokens
 
 @Composable
@@ -27,8 +28,9 @@ fun MacroBar(
         animationSpec = tween(MotionTokens.medium),
     )
 
-    val goalFraction = animatedProgress.coerceAtMost(1f)
-    val overFraction = if (overageTint != null) (animatedProgress - 1f).coerceIn(0f, 1f) else 0f
+    val progressSegments = macroProgressSegments(animatedProgress)
+    val goalFraction = progressSegments.goalFraction
+    val overFraction = if (overageTint != null) progressSegments.overageFraction else 0f
 
     Box(
         modifier = modifier

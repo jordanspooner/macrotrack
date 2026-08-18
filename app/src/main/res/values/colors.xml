@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="widget_surface">#FFFAFDFA</color>
+    <color name="widget_surface_variant">#FFDBE5DE</color>
+    <color name="widget_on_surface">#FF1A1C1B</color>
+    <color name="widget_on_surface_variant">#FF3F4945</color>
+    <color name="widget_action_surface">#FFAEE5C4</color>
+    <color name="widget_action_content">#FF00210F</color>
+    <color name="widget_calories">#FFF5A524</color>
+    <color name="widget_calories_overage">#FFD08A1C</color>
+    <color name="widget_protein">#FF5F8B4B</color>
+    <color name="widget_protein_overage">#FF3F5E32</color>
+    <color name="widget_carbs">#FF3B82F6</color>
+    <color name="widget_carbs_overage">#FF1E5BB8</color>
+    <color name="widget_fat">#FFD97757</color>
+    <color name="widget_fat_overage">#FFB0593B</color>
+</resources>

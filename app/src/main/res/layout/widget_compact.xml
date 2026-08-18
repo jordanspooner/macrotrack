@@ -1,0 +1,330 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_surface_background"
+    android:clipChildren="false"
+    android:clipToPadding="false"
+    android:orientation="vertical"
+    android:padding="12dp">
+
+    <LinearLayout
+        android:id="@+id/widget_header"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/widget_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:text="Today"
+            android:textColor="@color/widget_on_surface"
+            android:textSize="20sp" />
+
+        <TextView
+            android:id="@+id/widget_kcal"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:textColor="@color/widget_on_surface_variant"
+            android:textSize="15sp" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/widget_summary"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:clipChildren="false"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingTop="4dp"
+        android:paddingBottom="4dp">
+
+        <ImageView
+            android:id="@+id/widget_kcal_ring"
+            android:layout_width="64dp"
+            android:layout_height="64dp"
+            android:contentDescription="Calories progress"
+            android:scaleType="fitCenter" />
+
+        <TextView
+            android:layout_width="8dp"
+            android:layout_height="1dp" />
+
+        <LinearLayout
+            android:id="@+id/widget_macro_column"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center_vertical"
+            android:orientation="vertical">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/protein_label"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:includeFontPadding="false"
+                        android:text="Protein"
+                        android:textColor="@color/widget_on_surface"
+                        android:textSize="13sp" />
+
+                    <TextView
+                        android:id="@+id/protein_value"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:includeFontPadding="false"
+                        android:textColor="@color/widget_on_surface_variant"
+                        android:textSize="12sp" />
+                </LinearLayout>
+
+                <FrameLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="6dp"
+                    android:layout_marginTop="2dp">
+
+                    <ProgressBar
+                        android:id="@+id/protein_progress"
+                        style="@android:style/Widget.ProgressBar.Horizontal"
+                        android:layout_width="match_parent"
+                        android:layout_height="6dp"
+                        android:indeterminate="false"
+                        android:max="1000"
+                        android:progressBackgroundTint="@color/widget_surface_variant"
+                        android:progressTint="@color/widget_protein" />
+
+                    <ProgressBar
+                        android:id="@+id/protein_overage_progress"
+                        style="@android:style/Widget.ProgressBar.Horizontal"
+                        android:layout_width="match_parent"
+                        android:layout_height="6dp"
+                        android:indeterminate="false"
+                        android:max="1000"
+                        android:progressBackgroundTint="@color/widget_surface_variant"
+                        android:progressTint="@color/widget_protein_overage"
+                        android:visibility="gone" />
+                </FrameLayout>
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="1dp"
+                android:layout_height="4dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/carbs_label"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:includeFontPadding="false"
+                        android:text="Carbs"
+                        android:textColor="@color/widget_on_surface"
+                        android:textSize="13sp" />
+
+                    <TextView
+                        android:id="@+id/carbs_value"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:includeFontPadding="false"
+                        android:textColor="@color/widget_on_surface_variant"
+                        android:textSize="12sp" />
+                </LinearLayout>
+
+                <FrameLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="6dp"
+                    android:layout_marginTop="2dp">
+
+                    <ProgressBar
+                        android:id="@+id/carbs_progress"
+                        style="@android:style/Widget.ProgressBar.Horizontal"
+                        android:layout_width="match_parent"
+                        android:layout_height="6dp"
+                        android:indeterminate="false"
+                        android:max="1000"
+                        android:progressBackgroundTint="@color/widget_surface_variant"
+                        android:progressTint="@color/widget_carbs" />
+
+                    <ProgressBar
+                        android:id="@+id/carbs_overage_progress"
+                        style="@android:style/Widget.ProgressBar.Horizontal"
+                        android:layout_width="match_parent"
+                        android:layout_height="6dp"
+                        android:indeterminate="false"
+                        android:max="1000"
+                        android:progressBackgroundTint="@color/widget_surface_variant"
+                        android:progressTint="@color/widget_carbs_overage"
+                        android:visibility="gone" />
+                </FrameLayout>
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="1dp"
+                android:layout_height="4dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/fat_label"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:includeFontPadding="false"
+                        android:text="Fat"
+                        android:textColor="@color/widget_on_surface"
+                        android:textSize="13sp" />
+
+                    <TextView
+                        android:id="@+id/fat_value"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:includeFontPadding="false"
+                        android:textColor="@color/widget_on_surface_variant"
+                        android:textSize="12sp" />
+                </LinearLayout>
+
+                <FrameLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="6dp"
+                    android:layout_marginTop="2dp">
+
+                    <ProgressBar
+                        android:id="@+id/fat_progress"
+                        style="@android:style/Widget.ProgressBar.Horizontal"
+                        android:layout_width="match_parent"
+                        android:layout_height="6dp"
+                        android:indeterminate="false"
+                        android:max="1000"
+                        android:progressBackgroundTint="@color/widget_surface_variant"
+                        android:progressTint="@color/widget_fat" />
+
+                    <ProgressBar
+                        android:id="@+id/fat_overage_progress"
+                        style="@android:style/Widget.ProgressBar.Horizontal"
+                        android:layout_width="match_parent"
+                        android:layout_height="6dp"
+                        android:indeterminate="false"
+                        android:max="1000"
+                        android:progressBackgroundTint="@color/widget_surface_variant"
+                        android:progressTint="@color/widget_fat_overage"
+                        android:visibility="gone" />
+                </FrameLayout>
+            </LinearLayout>
+        </LinearLayout>
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/widget_actions"
+        android:layout_width="match_parent"
+        android:layout_height="42dp"
+        android:layout_marginTop="2dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <ImageButton
+            android:id="@+id/action_search"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="@drawable/widget_action_background"
+            android:contentDescription="@string/widget_action_search"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:padding="0dp"
+            android:scaleType="center"
+            android:src="@drawable/ic_widget_search"
+            android:tint="@color/widget_action_content" />
+
+        <TextView
+            android:layout_width="4dp"
+            android:layout_height="1dp" />
+
+        <ImageButton
+            android:id="@+id/action_label"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="@drawable/widget_action_background"
+            android:contentDescription="@string/widget_action_scan_label"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:padding="0dp"
+            android:scaleType="center"
+            android:src="@drawable/ic_widget_label"
+            android:tint="@color/widget_action_content" />
+
+        <TextView
+            android:layout_width="4dp"
+            android:layout_height="1dp" />
+
+        <ImageButton
+            android:id="@+id/action_barcode"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="@drawable/widget_action_background"
+            android:contentDescription="@string/widget_action_scan_barcode"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:padding="0dp"
+            android:scaleType="center"
+            android:src="@drawable/ic_widget_barcode"
+            android:tint="@color/widget_action_content" />
+
+        <TextView
+            android:layout_width="4dp"
+            android:layout_height="1dp" />
+
+        <ImageButton
+            android:id="@+id/action_quick_add"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="@drawable/widget_action_background"
+            android:contentDescription="@string/widget_action_quick_add"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:padding="0dp"
+            android:scaleType="center"
+            android:src="@drawable/ic_widget_quick_add"
+            android:tint="@color/widget_action_content" />
+    </LinearLayout>
+</LinearLayout>

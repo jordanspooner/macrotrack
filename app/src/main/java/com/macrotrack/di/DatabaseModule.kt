@@ -2,6 +2,7 @@ package com.macrotrack.di
 
 import android.content.Context
 import androidx.room.Room
+import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import com.macrotrack.data.local.db.MacroTrackDatabase
 import com.macrotrack.data.local.db.dao.FoodItemDao
 import com.macrotrack.data.local.db.dao.FoodSourceDao
@@ -28,6 +29,7 @@ object DatabaseModule {
             MacroTrackDatabase::class.java,
             "macro_track.db"
         )
+        .setDriver(BundledSQLiteDriver())
         .fallbackToDestructiveMigration(dropAllTables = true)
         .build()
     }

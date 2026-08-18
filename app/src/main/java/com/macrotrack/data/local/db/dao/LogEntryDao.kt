@@ -46,6 +46,9 @@ interface LogEntryDao {
 
     @Query("SELECT date, SUM(kcal) AS kcal, SUM(protein) AS protein, SUM(carbs) AS carbs, SUM(fat) AS fat FROM log_entries WHERE date BETWEEN :from AND :to GROUP BY date")
     fun getMacrosByDateRange(from: String, to: String): Flow<List<DailyMacroRow>>
+
+    @Query("SELECT date, SUM(kcal) AS kcal, SUM(protein) AS protein, SUM(carbs) AS carbs, SUM(fat) AS fat FROM log_entries WHERE date BETWEEN :from AND :to GROUP BY date")
+    suspend fun getMacrosByDateRangeOnce(from: String, to: String): List<DailyMacroRow>
 }
 
 data class DailyMacroRow(

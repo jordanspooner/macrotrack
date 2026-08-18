@@ -44,7 +44,7 @@ import com.macrotrack.ui.theme.Spacing
 import com.macrotrack.ui.theme.brandOnPrimary
 import com.macrotrack.ui.theme.brandPrimary
 import com.macrotrack.ui.theme.restingSurfaceColor
-import com.macrotrack.domain.model.Section
+import com.macrotrack.domain.model.defaultSectionIdForTime
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
@@ -170,7 +170,7 @@ fun LogScreen(
 
     if (showAddMenu) {
         val sections = uiState.currentDay?.sections ?: emptyList()
-        val defaultId = defaultSectionId(sections.map { it.section })
+        val defaultId = defaultSectionIdForTime(sections.map { it.section }, LocalTime.now())
         val defaultName = sections.firstOrNull { it.section.id == defaultId }?.section?.name ?: "today"
         val dateIso = uiState.selectedDate.format(DateTimeFormatter.ISO_LOCAL_DATE)
         ModalBottomSheet(onDismissRequest = { showAddMenu = false }) {
@@ -438,7 +438,10 @@ private fun DayContentPage(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Spacer(modifier = Modifier.height(Spacing.md))
-                            val defaultId = defaultSectionId(dayContent.sections.map { it.section })
+                            val defaultId = defaultSectionIdForTime(
+                                dayContent.sections.map { it.section },
+                                LocalTime.now(),
+                            )
                             val dateIso = dayContent.date.format(DateTimeFormatter.ISO_LOCAL_DATE)
                             OutlinedButton(
                                 onClick = { onNavigateToAddFood(defaultId, dateIso, "search") },
@@ -579,18 +582,6 @@ private fun dayContentForPage(page: Int, uiState: LogUiState): DayContent? {
         currentDayPage + 1 -> uiState.nextDay
         else -> null
     }
-}
-
-/**
- * Picks the section closest to (but not after) the current time; if none qualify,
- * returns the latest section of the day. Falls back to the first section.
- */
-private fun defaultSectionId(sections: List<Section>): Long {
-    if (sections.isEmpty()) return 0L
-    val now = LocalTime.now()
-    val sorted = sections.sortedBy { it.timeOfDay }
-    val past = sorted.filter { !it.timeOfDay.isAfter(now) }
-    return (past.lastOrNull() ?: sorted.last()).id
 }
 
 @Composable

@@ -68,6 +68,7 @@ dependencies {
     // Room
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
+    implementation(libs.androidx.sqlite.bundled)
     ksp(libs.androidx.room.compiler)
 
     // Hilt
@@ -80,6 +81,9 @@ dependencies {
 
     // DataStore
     implementation(libs.androidx.datastore.preferences)
+
+    // App widgets
+    implementation(libs.androidx.glance.appwidget)
 
     // Coroutines
     implementation(libs.kotlinx.coroutines.android)
