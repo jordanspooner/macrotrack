@@ -1,6 +1,5 @@
 package com.macrotrack.ui.log
 
-import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
@@ -261,9 +260,6 @@ fun LogScreen(
 
 private val DATE_EPOCH = LocalDate.of(1970, 1, 1)
 
-/** Logcat tag for drag-and-drop diagnostics; grep for this to trace drop/edge events. */
-private const val DND_TAG = "MacroTrackDnD"
-
 /** Upper bound for a single edge step to land in the UI state before pacing the next. */
 private const val EDGE_TARGET_TIMEOUT_MILLIS = 1_500L
 
@@ -321,7 +317,6 @@ private fun LogContent(
 
     fun startDrag(snapshot: List<LogEntry>, sourceDate: LocalDate, position: Offset) {
         if (dragState != null || snapshot.isEmpty()) return
-        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
         // A drag must never be misread as a pending normal pager swipe: stale
         // settles from programmatic scrolling cannot generate a false delta.
         userDraggedWeekPager = false
@@ -364,7 +359,6 @@ private fun LogContent(
     fun pageForEdge(edge: ActiveEdge) {
         haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
         val step = edgeStepFor(edge)
-        Log.i(DND_TAG, "edge step day=${step.dayDelta} week=${step.weekDelta}")
         if (step.weekDelta != 0L) viewModel.navigateWeekDuringDrag(step.weekDelta)
         if (step.dayDelta != 0L) viewModel.advanceDayDuringDrag(step.dayDelta)
     }
@@ -373,26 +367,27 @@ private fun LogContent(
         val drag = dragState ?: return
         dragState = null
         dragPointerPosition = Offset.Zero
+        userDraggedWeekPager = false
+        userDraggedContentPager = false
         if (shouldCancelDrop(position, weekStripBounds, dailyBodyBounds, edgeWidthPx)) {
-            Log.w(DND_TAG, "drop cancelled: released in edge zone at $position")
             return
         }
         when (val target = resolveDropTarget(position, mealTargets, weekTargets)) {
             is DragTarget.Meal -> {
-                Log.i(DND_TAG, "drop -> move ${drag.entries.size} to $target")
                 viewModel.moveDraggedEntries(drag.entries, target.date, target.sectionId)
             }
             is DragTarget.WeekDay -> {
-                Log.i(DND_TAG, "drop -> move ${drag.entries.size} to ${target.date}")
                 viewModel.moveDraggedEntries(drag.entries, target.date)
             }
-            null -> Log.w(DND_TAG, "drop cancelled: no target at $position")
+            null -> Unit
         }
     }
 
     val cancelDrag = {
         dragState = null
         dragPointerPosition = Offset.Zero
+        userDraggedWeekPager = false
+        userDraggedContentPager = false
     }
     val latestDragState = rememberUpdatedState(dragState)
     val latestMoveDrag = rememberUpdatedState<(Offset) -> Unit>(::moveDrag)
@@ -893,9 +888,9 @@ private fun DayContentPage(
                                     // Drag movement and release are owned solely by the
                                     // stable root pointer observer in LogContent (it sees
                                     // the original pointer in the Initial pass and keeps
-                                    // tracking it after pager disposal). Card-level move
-                                    // and end callbacks are no-ops so the same pointer is
-                                    // never processed twice.
+                                    // tracking it after pager navigation disposes this card.
+                                    // Card-level move and end callbacks are no-ops so the same
+                                    // pointer is never processed twice.
                                     onDragMove = { },
                                     onDragEnd = { },
                                 )
