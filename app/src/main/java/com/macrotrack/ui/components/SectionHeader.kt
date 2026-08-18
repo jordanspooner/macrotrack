@@ -185,7 +185,6 @@ fun SectionHeader(
         }
     }
 }
-
 @Composable
 private fun MealKcalRing(
     progress: Float,
@@ -226,4 +225,3 @@ private fun MealKcalRing(
         }
     }
 }
-

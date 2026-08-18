@@ -3,6 +3,8 @@ package com.macrotrack.ui.log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.macrotrack.data.local.db.dao.DailyMacroRow
+import com.macrotrack.domain.NoOpWidgetRefreshRequester
+import com.macrotrack.domain.WidgetRefreshRequester
 import com.macrotrack.domain.model.DailySummary
 import com.macrotrack.domain.model.LogEntry
 import com.macrotrack.domain.model.Macros
@@ -48,6 +50,7 @@ class LogViewModel @Inject constructor(
     private val copyLogEntriesUseCase: CopyLogEntriesUseCase,
     private val moveLogEntriesUseCase: MoveLogEntriesUseCase,
     private val getWeeklyMacrosUseCase: GetWeeklyMacrosUseCase,
+    private val widgetRefreshRequester: WidgetRefreshRequester = NoOpWidgetRefreshRequester,
 ) : ViewModel() {
 
     private val _selectedDate = MutableStateFlow(LocalDate.now())
@@ -291,6 +294,7 @@ class LogViewModel @Inject constructor(
         if (mode.selectedEntries.isEmpty()) return
         viewModelScope.launch {
             copyLogEntriesUseCase(mode.selectedEntries, mode.sourceDate)
+            widgetRefreshRequester.requestUpdate()
         }
     }
 
@@ -299,6 +303,7 @@ class LogViewModel @Inject constructor(
         if (mode.selectedEntries.isEmpty()) return
         viewModelScope.launch {
             deleteLogEntriesUseCase(mode.selectedEntries)
+            widgetRefreshRequester.requestUpdate()
             exitSelectionMode()
         }
     }
@@ -312,6 +317,7 @@ class LogViewModel @Inject constructor(
                 // Never produced: moves are handled by the drag path.
                 Action.Move -> error("Move is not a selection action")
             }
+            widgetRefreshRequester.requestUpdate()
             _selectionMode.value = SelectionMode.Selecting(
                 sourceDate = mode.sourceDate,
                 selectedEntries = mode.selectedEntries,
@@ -353,7 +359,10 @@ class LogViewModel @Inject constructor(
             // Clear selection only after the mutation committed. If the DB op
             // timed out (never blocked the main thread), keep the selection so
             // the user can retry rather than leaving a silently-failed drop.
-            if (completed == true) exitSelectionMode()
+            if (completed == true) {
+                widgetRefreshRequester.requestUpdate()
+                exitSelectionMode()
+            }
         }
     }
 

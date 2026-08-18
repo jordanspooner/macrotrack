@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.macrotrack.data.local.datastore.SectionGoalCodec
 import com.macrotrack.data.repository.SettingsRepository
+import com.macrotrack.domain.NoOpWidgetRefreshRequester
+import com.macrotrack.domain.WidgetRefreshRequester
 import com.macrotrack.domain.model.DailyGoals
 import com.macrotrack.domain.model.Section
 import com.macrotrack.domain.usecase.settings.GetSectionsUseCase
@@ -30,6 +32,7 @@ class SettingsViewModel @Inject constructor(
     private val updateSectionsUseCase: UpdateSectionsUseCase,
     private val saveSectionDistributionUseCase: SaveSectionDistributionUseCase,
     private val settingsRepository: SettingsRepository,
+    private val widgetRefreshRequester: WidgetRefreshRequester = NoOpWidgetRefreshRequester,
 ) : ViewModel() {
 
     private val _draftGoals = MutableStateFlow(DailyGoals(150, 250, 65))
@@ -129,6 +132,7 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             _isSavingGoals.value = true
             updateDailyGoalsUseCase(_draftGoals.value)
+            widgetRefreshRequester.requestUpdate()
             _isSavingGoals.value = false
             _goalsSaved.value = true
             _hasUnsavedChanges.value = false
@@ -195,6 +199,7 @@ class SettingsViewModel @Inject constructor(
                     )
                 }
             updateSectionsUseCase(sections)
+            widgetRefreshRequester.requestUpdate()
             _isSavingSections.value = false
             _sectionsSaved.value = true
             _hasUnsavedChanges.value = false

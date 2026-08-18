@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import com.macrotrack.domain.model.FoodItem
 import com.macrotrack.domain.model.LogEntry
 import com.macrotrack.domain.model.Source
+import com.macrotrack.domain.NoOpWidgetRefreshRequester
+import com.macrotrack.domain.WidgetRefreshRequester
 import com.macrotrack.domain.usecase.log.GetDailyLogUseCase
 import com.macrotrack.domain.usecase.log.UpdateLogEntryUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -33,6 +35,7 @@ class EditEntryViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val getDailyLogUseCase: GetDailyLogUseCase,
     private val updateLogEntryUseCase: UpdateLogEntryUseCase,
+    private val widgetRefreshRequester: WidgetRefreshRequester = NoOpWidgetRefreshRequester,
 ) : ViewModel() {
 
     private val entryId: Long = savedStateHandle.get<String>("entryId")?.toLongOrNull() ?: 0L
@@ -78,6 +81,7 @@ class EditEntryViewModel @Inject constructor(
         val entry = _entry.value ?: return
         viewModelScope.launch {
             updateLogEntryUseCase(entry, portionG, portionLabel)
+            widgetRefreshRequester.requestUpdate()
         }
     }
 }

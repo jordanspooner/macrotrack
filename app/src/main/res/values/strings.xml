@@ -1,3 +1,9 @@
 <resources>
     <string name="app_name">MacroTrack</string>
+    <string name="widget_name">MacroTrack today</string>
+    <string name="widget_description">Calories, macros, and quick add actions for today</string>
+    <string name="widget_action_search">Search foods</string>
+    <string name="widget_action_scan_label">Scan nutrition label</string>
+    <string name="widget_action_scan_barcode">Scan barcode</string>
+    <string name="widget_action_quick_add">Quick add macros</string>
 </resources>

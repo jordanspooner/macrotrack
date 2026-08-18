@@ -6,6 +6,9 @@ import androidx.lifecycle.viewModelScope
 import com.macrotrack.domain.model.FoodItem
 import com.macrotrack.domain.model.Macros
 import com.macrotrack.domain.model.Section
+import com.macrotrack.domain.model.defaultSectionIdForTime
+import com.macrotrack.domain.NoOpWidgetRefreshRequester
+import com.macrotrack.domain.WidgetRefreshRequester
 import com.macrotrack.domain.parser.ParsedNutritionLabel
 import com.macrotrack.domain.usecase.food.AddUserFoodUseCase
 import com.macrotrack.domain.usecase.food.GetRecommendationsUseCase
@@ -30,6 +33,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 
@@ -73,6 +77,7 @@ class AddViewModel @Inject constructor(
     private val lookupBarcodeUseCase: LookupBarcodeUseCase,
     private val addUserFoodUseCase: AddUserFoodUseCase,
     private val foodRepository: FoodRepository,
+    private val widgetRefreshRequester: WidgetRefreshRequester = NoOpWidgetRefreshRequester,
     private val settingsRepository: SettingsRepository,
 ) : ViewModel() {
 
@@ -107,6 +112,17 @@ class AddViewModel @Inject constructor(
         .observeCount()
         .map { count -> count > 0 }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    init {
+        viewModelScope.launch {
+            _sections.collect { sections ->
+                val selectedId = _targetSectionId.value
+                if (selectedId == 0L || sections.none { it.id == selectedId }) {
+                    _targetSectionId.value = defaultSectionIdForTime(sections, LocalTime.now())
+                }
+            }
+        }
+    }
 
     @OptIn(ExperimentalCoroutinesApi::class)
     private val _results: StateFlow<List<FoodItem>> = _query
@@ -222,6 +238,7 @@ class AddViewModel @Inject constructor(
                 sectionId = _targetSectionId.value,
                 sortOrder = 0
             )
+            widgetRefreshRequester.requestUpdate()
         }
     }
 

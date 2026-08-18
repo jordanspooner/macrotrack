@@ -68,6 +68,7 @@ dependencies {
     // Room
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
+    implementation(libs.androidx.sqlite.bundled)
     ksp(libs.androidx.room.compiler)
     // Bundled SQLite driver: guarantees FTS5 with the trigram tokenizer on all
     // API levels (framework SQLite lacks trigram below API 33).
@@ -83,6 +84,9 @@ dependencies {
 
     // DataStore
     implementation(libs.androidx.datastore.preferences)
+
+    // App widgets
+    implementation(libs.androidx.glance.appwidget)
 
     // Coroutines
     implementation(libs.kotlinx.coroutines.android)

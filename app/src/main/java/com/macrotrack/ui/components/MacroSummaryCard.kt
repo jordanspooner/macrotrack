@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.macrotrack.domain.model.DailySummary
+import com.macrotrack.domain.model.macroProgressSegments
 import com.macrotrack.ui.theme.Spacing
 import com.macrotrack.ui.theme.macroCaloriesColor
 import com.macrotrack.ui.theme.macroCaloriesOverageColor
@@ -28,7 +29,6 @@ import com.macrotrack.ui.theme.macroFatColor
 import com.macrotrack.ui.theme.macroFatOverageColor
 import com.macrotrack.ui.theme.macroProteinColor
 import com.macrotrack.ui.theme.macroProteinOverageColor
-import kotlin.math.min
 import kotlin.math.roundToInt
 
 @Composable
@@ -81,7 +81,8 @@ fun MacroSummaryCard(
                         style = Stroke(width = trackStroke, cap = StrokeCap.Round)
                     )
 
-                    val primarySweep = min(summary.kcalPercent, 1f) * 360f
+                    val progressSegments = macroProgressSegments(summary.kcalPercent)
+                    val primarySweep = progressSegments.goalFraction * 360f
                     drawArc(
                         color = kcalColor,
                         startAngle = -90f,
@@ -92,8 +93,8 @@ fun MacroSummaryCard(
                         style = Stroke(width = stroke, cap = StrokeCap.Round)
                     )
 
-                    if (summary.kcalPercent > 1f) {
-                        val overageSweep = min(summary.kcalPercent - 1f, 1f) * 360f
+                    if (progressSegments.overageFraction > 0f) {
+                        val overageSweep = progressSegments.overageFraction * 360f
                         drawArc(
                             color = kcalOverageColor,
                             startAngle = -90f,
