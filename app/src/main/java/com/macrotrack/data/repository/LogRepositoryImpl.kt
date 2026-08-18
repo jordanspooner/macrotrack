@@ -1,6 +1,7 @@
 package com.macrotrack.data.repository
 
-import androidx.room.withTransaction
+import androidx.room.Transactor
+import androidx.room.useWriterConnection
 import com.macrotrack.data.local.db.MacroTrackDatabase
 import com.macrotrack.data.local.db.dao.DailyMacroRow
 import com.macrotrack.data.local.db.dao.LogEntryDao
@@ -64,15 +65,19 @@ class LogRepositoryImpl @Inject constructor(
 
     override suspend fun insertAllAtEnd(entries: List<LogEntry>) {
         if (entries.isEmpty()) return
-        macroTrackDatabase.withTransaction {
-            insertAllAtEndInTransaction(entries)
+        macroTrackDatabase.useWriterConnection { connection ->
+            connection.withTransaction(Transactor.SQLiteTransactionType.IMMEDIATE) {
+                insertAllAtEndInTransaction(entries)
+            }
         }
     }
 
     override suspend fun updateAllAtEnd(entries: List<LogEntry>) {
         if (entries.isEmpty()) return
-        macroTrackDatabase.withTransaction {
-            updateAllAtEndInTransaction(entries)
+        macroTrackDatabase.useWriterConnection { connection ->
+            connection.withTransaction(Transactor.SQLiteTransactionType.IMMEDIATE) {
+                updateAllAtEndInTransaction(entries)
+            }
         }
     }
 

@@ -11,4 +11,7 @@ interface SettingsRepository {
     suspend fun setSectionGoalsEnabled(enabled: Boolean)
     fun getSectionGoalDistribution(): Flow<String?>
     suspend fun setSectionGoalDistribution(json: String)
+
+    fun getLastPortions(): Flow<Map<Long, Float>>
+    suspend fun setLastPortion(foodId: Long, portionG: Float)
 }

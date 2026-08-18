@@ -149,7 +149,8 @@ fun AddScreen(
                         food = pendingFood,
                         sectionName = sectionName,
                         onConfirm = viewModel::confirmPortion,
-                        onBack = viewModel::backFromPortion
+                        onBack = viewModel::backFromPortion,
+                        lastPortionG = uiState.lastPortions[pendingFood.id],
                     )
                 } else {
                     when (uiState.mode) {

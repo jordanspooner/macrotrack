@@ -2,6 +2,7 @@ package com.macrotrack.ui.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.macrotrack.data.local.datastore.SectionGoalCodec
 import com.macrotrack.data.repository.SettingsRepository
 import com.macrotrack.domain.NoOpWidgetRefreshRequester
 import com.macrotrack.domain.WidgetRefreshRequester
@@ -294,65 +295,12 @@ class SettingsViewModel @Inject constructor(
             return result
         }
 
-        fun serializeDistribution(distribution: Map<Long, Map<MacroType, Float>>): String {
-            val sb = StringBuilder()
-            sb.append("{")
-            distribution.entries.forEachIndexed { i, (sectionId, macros) ->
-                if (i > 0) sb.append(",")
-                sb.append("\"$sectionId\":{")
-                macros.entries.forEachIndexed { j, (type, percent) ->
-                    if (j > 0) sb.append(",")
-                    sb.append("\"${type.name}\":${"%.1f".format(percent)}")
-                }
-                sb.append("}")
-            }
-            sb.append("}")
-            return sb.toString()
-        }
+        /** Delegates to [SectionGoalCodec.serialize]; kept for settings API compatibility. */
+        fun serializeDistribution(distribution: Map<Long, Map<MacroType, Float>>): String =
+            SectionGoalCodec.serialize(distribution)
 
-        fun parseDistribution(json: String): Map<Long, Map<MacroType, Float>> {
-            val result = mutableMapOf<Long, Map<MacroType, Float>>()
-            val trimmed = json.trim().removeSurrounding("{", "}")
-            if (trimmed.isBlank()) return result
-            val parts = splitTopLevel(trimmed)
-            for (part in parts) {
-                val colonIdx = part.indexOf(':')
-                if (colonIdx < 0) continue
-                val key = part.substring(0, colonIdx).trim().removeSurrounding("\"")
-                val sectionId = key.toLongOrNull() ?: continue
-                val innerJson = part.substring(colonIdx + 1).trim().removeSurrounding("{", "}")
-                val macroMap = mutableMapOf<MacroType, Float>()
-                for (item in splitTopLevel(innerJson)) {
-                    val mColon = item.indexOf(':')
-                    if (mColon < 0) continue
-                    val macroKey = item.substring(0, mColon).trim().removeSurrounding("\"")
-                    val macroVal = item.substring(mColon + 1).trim().toFloatOrNull() ?: continue
-                    try { macroMap[MacroType.valueOf(macroKey)] = macroVal } catch (_: Exception) {}
-                }
-                result[sectionId] = macroMap
-            }
-            return result
-        }
-
-        private fun splitTopLevel(s: String): List<String> {
-            val result = mutableListOf<String>()
-            var depth = 0
-            val current = StringBuilder()
-            for (c in s) {
-                when (c) {
-                    '{' -> { depth++; current.append(c) }
-                    '}' -> { depth--; current.append(c) }
-                    ',' -> {
-                        if (depth == 0) {
-                            if (current.isNotEmpty()) result.add(current.toString().trim())
-                            current.clear()
-                        } else current.append(c)
-                    }
-                    else -> current.append(c)
-                }
-            }
-            if (current.isNotEmpty()) result.add(current.toString().trim())
-            return result
-        }
+        /** Delegates to [SectionGoalCodec.parseMap]; kept for settings API compatibility. */
+        fun parseDistribution(json: String): Map<Long, Map<MacroType, Float>> =
+            SectionGoalCodec.parseMap(json)
     }
 }

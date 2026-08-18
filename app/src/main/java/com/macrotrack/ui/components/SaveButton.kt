@@ -21,10 +21,12 @@ fun SaveButton(
     label: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
 ) {
     if (hasChanges) {
         Button(
             onClick = onClick,
+            enabled = enabled,
             modifier = modifier
                 .fillMaxWidth()
                 .height(48.dp),
@@ -37,6 +39,7 @@ fun SaveButton(
     } else {
         OutlinedButton(
             onClick = onClick,
+            enabled = enabled,
             modifier = modifier
                 .fillMaxWidth()
                 .height(48.dp),

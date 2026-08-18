@@ -14,6 +14,7 @@ import com.macrotrack.domain.usecase.log.GetDailyLogUseCase
 import com.macrotrack.domain.usecase.log.GetWeeklyMacrosUseCase
 import com.macrotrack.domain.usecase.log.MoveLogEntriesUseCase
 import com.macrotrack.domain.usecase.settings.GetSectionsUseCase
+import com.macrotrack.domain.usecase.settings.GetSectionGoalsUseCase
 import com.macrotrack.domain.usecase.settings.GetSettingsUseCase
 import io.mockk.CapturingSlot
 import io.mockk.coEvery
@@ -72,10 +73,13 @@ class LogViewModelSelectionTest {
         every { settingsRepository.getDailyGoals() } returns MutableStateFlow(
             DailyGoals(proteinG = 150, carbsG = 250, fatG = 70)
         )
+        every { settingsRepository.getSectionGoalsEnabled() } returns MutableStateFlow(false)
+        every { settingsRepository.getSectionGoalDistribution() } returns MutableStateFlow(null)
         viewModel = LogViewModel(
             getDailyLogUseCase = GetDailyLogUseCase(logRepository),
             getSectionsUseCase = GetSectionsUseCase(sectionRepository),
             getSettingsUseCase = GetSettingsUseCase(settingsRepository),
+            getSectionGoalsUseCase = GetSectionGoalsUseCase(settingsRepository),
             deleteLogEntriesUseCase = deleteLogEntriesUseCase,
             copyLogEntriesUseCase = copyLogEntriesUseCase,
             moveLogEntriesUseCase = moveLogEntriesUseCase,

@@ -17,6 +17,7 @@ import com.macrotrack.domain.usecase.food.SearchFoodUseCase
 import com.macrotrack.domain.usecase.log.AddLogEntryUseCase
 import com.macrotrack.domain.usecase.settings.GetSectionsUseCase
 import com.macrotrack.data.repository.FoodRepository
+import com.macrotrack.data.repository.SettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
@@ -27,6 +28,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -61,6 +63,7 @@ data class AddUiState(
     val quickAddDraft: QuickAddDraft,
     val message: String?,
     val hasFoodData: Boolean = false,
+    val lastPortions: Map<Long, Float> = emptyMap(),
 )
 
 @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
@@ -75,6 +78,7 @@ class AddViewModel @Inject constructor(
     private val addUserFoodUseCase: AddUserFoodUseCase,
     private val foodRepository: FoodRepository,
     private val widgetRefreshRequester: WidgetRefreshRequester = NoOpWidgetRefreshRequester,
+    private val settingsRepository: SettingsRepository,
 ) : ViewModel() {
 
     private val initialDateIso: String =
@@ -104,19 +108,6 @@ class AddViewModel @Inject constructor(
     private val _sections: StateFlow<List<Section>> = getSectionsUseCase()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    @OptIn(ExperimentalCoroutinesApi::class)
-    private val _results: StateFlow<List<FoodItem>> = _query
-        .debounce(300)
-        .combine(_targetSectionId) { q, sectionId -> q to sectionId }
-        .flatMapLatest { (q, sectionId) ->
-            if (q.isBlank()) {
-                flow { emit(getRecommendationsUseCase.getRecommendations(sectionId)) }
-            } else {
-                searchFoodUseCase(q, sectionId)
-            }
-        }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
     private val _hasFoodData: StateFlow<Boolean> = foodRepository
         .observeCount()
         .map { count -> count > 0 }
@@ -133,6 +124,24 @@ class AddViewModel @Inject constructor(
         }
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private val _results: StateFlow<List<FoodItem>> = _query
+        .debounce(300)
+        .combine(_targetSectionId) { q, sectionId -> q to sectionId }
+        .combine(_hasFoodData) { (q, sectionId), hasData -> Triple(q, sectionId, hasData) }
+        .flatMapLatest { (q, sectionId, hasData) ->
+            when {
+                !hasData -> flowOf(emptyList())
+                q.isBlank() -> flow { emit(getRecommendationsUseCase.getRecommendations(sectionId)) }
+                else -> searchFoodUseCase(q, sectionId)
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private val _lastPortions: StateFlow<Map<Long, Float>> = settingsRepository
+        .getLastPortions()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
     val uiState: StateFlow<AddUiState> = combine(
         combine(_sections, _targetSectionId, _mode, _query, _results) {
                 sections, sectionId, mode, query, results ->
@@ -142,8 +151,9 @@ class AddViewModel @Inject constructor(
         combine(_pendingFood, _quickAddDraft, _message) { pending, draft, message ->
             Three(pending, draft, message)
         },
-        _hasFoodData
-    ) { a, b, hasFoodData ->
+        _hasFoodData,
+        _lastPortions
+    ) { a, b, hasFoodData, lastPortions ->
         AddUiState(
             date = _date.value,
             dateIso = initialDateIso,
@@ -155,7 +165,8 @@ class AddViewModel @Inject constructor(
             pendingFood = b.pending,
             quickAddDraft = b.draft,
             message = b.message,
-            hasFoodData = hasFoodData
+            hasFoodData = hasFoodData,
+            lastPortions = lastPortions
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AddUiState(
         date = _date.value,
@@ -191,11 +202,13 @@ class AddViewModel @Inject constructor(
 
     /** Adds the food using its default serving without opening portion selection. */
     fun quickAddFood(food: FoodItem) {
+        val portionG = food.defaultPortionG ?: 100f
         launchAdd(
             food = food,
-            portionG = food.defaultPortionG ?: 100f,
+            portionG = portionG,
             portionLabel = food.defaultPortionLabel,
         )
+        viewModelScope.launch { settingsRepository.setLastPortion(food.id, portionG) }
         _query.value = ""
         _message.value = "Added ${food.name}"
     }
@@ -204,6 +217,7 @@ class AddViewModel @Inject constructor(
     fun confirmPortion(portionG: Float, portionLabel: String?) {
         val food = _pendingFood.value ?: return
         launchAdd(food, portionG, portionLabel)
+        viewModelScope.launch { settingsRepository.setLastPortion(food.id, portionG) }
         _pendingFood.value = null
         _query.value = ""
         _mode.value = AddMode.SEARCH

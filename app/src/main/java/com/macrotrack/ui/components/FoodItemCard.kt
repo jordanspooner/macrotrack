@@ -20,10 +20,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.onLongClick
 import androidx.compose.ui.semantics.selected
@@ -40,6 +42,8 @@ private enum class LongPressWindowResult {
     Released,
     Abort
 }
+
+private const val DRAG_LONG_PRESS_TIMEOUT_MILLIS = 400L
 
 /**
  * Food entry card driven by a single explicit gesture state machine ([pointerInput]) so
@@ -102,6 +106,7 @@ fun FoodItemCard(
     val latestOnDragStart by rememberUpdatedState(onDragStart)
     val latestOnDragMove by rememberUpdatedState(onDragMove)
     val latestOnDragEnd by rememberUpdatedState(onDragEnd)
+    val haptics = LocalHapticFeedback.current
 
     Card(
         modifier = modifier
@@ -110,10 +115,16 @@ fun FoodItemCard(
             .pointerInput(entry.id) {
                 awaitEachGesture {
                     if (!latestGesturesEnabled) {
-                        // awaitEachGesture immediately invokes the block again
-                        // after a normal return. Suspending here avoids a
-                        // main-thread busy loop while another card is dragged.
-                        awaitPointerEvent()
+                        // Wait until drags are re-enabled so the block returns
+                        // to awaitFirstDown with a fresh gesture. Never consume
+                        // a pointer event here: the frame wait (rather than an
+                        // event wait) prevents the first down of the next
+                        // gesture from being swallowed the instant after a drag
+                        // ends, when recomposition has not yet propagated the
+                        // re-enabled state.
+                        while (!latestGesturesEnabled) {
+                            withTimeoutOrNull(16L) { awaitPointerEvent() }
+                        }
                         return@awaitEachGesture
                     }
 
@@ -126,7 +137,10 @@ fun FoodItemCard(
                     // callbacks.
                     var anchor = down.position
                     val windowResult: LongPressWindowResult? = withTimeoutOrNull(
-                        viewConfiguration.longPressTimeoutMillis
+                        minOf(
+                            viewConfiguration.longPressTimeoutMillis,
+                            DRAG_LONG_PRESS_TIMEOUT_MILLIS,
+                        )
                     ) {
                         while (true) {
                             val change = awaitPointerEvent().changes
@@ -156,6 +170,7 @@ fun FoodItemCard(
 
                     // Phase 2 - long press succeeded.
                     latestOnLongPress()
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
 
                     // Phase 3 - wait for real post-long-press movement beyond the touch
                     // slop before starting the drag, then track the pointer until it goes
@@ -172,6 +187,9 @@ fun FoodItemCard(
                         }
                         if (!change.pressed) {
                             if (dragStarted) latestOnDragEnd(rootOffset + change.position)
+                            // Keep a completed long-press from leaking its up event
+                            // into the pager and poisoning the next gesture.
+                            change.consume()
                             return@awaitEachGesture
                         }
                         val root = rootOffset + change.position
