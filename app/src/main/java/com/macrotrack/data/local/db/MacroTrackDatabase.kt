@@ -7,7 +7,6 @@ import com.macrotrack.data.local.db.dao.FoodSourceDao
 import com.macrotrack.data.local.db.dao.LogEntryDao
 import com.macrotrack.data.local.db.dao.SectionDao
 import com.macrotrack.data.local.db.entity.FoodItemEntity
-import com.macrotrack.data.local.db.entity.FoodItemFts
 import com.macrotrack.data.local.db.entity.FoodSourceEntity
 import com.macrotrack.data.local.db.entity.LogEntryEntity
 import com.macrotrack.data.local.db.entity.SectionEntity
@@ -15,12 +14,14 @@ import com.macrotrack.data.local.db.entity.SectionEntity
 @Database(
     entities = [
         FoodItemEntity::class,
-        FoodItemFts::class,
         FoodSourceEntity::class,
         LogEntryEntity::class,
         SectionEntity::class
     ],
-    version = 3,
+    // Version 4: the Room-managed FTS4 index (food_items_fts) was replaced by
+    // manually managed FTS5 external-content tables (see SearchIndexManager).
+    // The database is rebuilt deterministically via fallbackToDestructiveMigration.
+    version = 4,
     exportSchema = false
 )
 abstract class MacroTrackDatabase : RoomDatabase() {

@@ -43,10 +43,12 @@ androidx-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-man
 androidx-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
 androidx-material3 = { group = "androidx.compose.material3", name = "material3" }
 
-# Room
+# Room and SQLite
 androidx-room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
 androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
 androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
+# Bundles a modern SQLite (FTS5 + trigram tokenizer) instead of relying on the
+# device's framework SQLite version.
 androidx-sqlite-bundled = { group = "androidx.sqlite", name = "sqlite-bundled", version.ref = "sqlite" }
 
 # Hilt
@@ -89,6 +91,10 @@ okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhtt
 
 # Kotlin Serialization
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
+
+# JVM SQLite for unit-testing the FTS5 index SQL (bundles FTS5 + trigram
+# tokenizer, including the trigram `remove_diacritics` option added in 3.45)
+sqlite-jdbc = { group = "org.xerial", name = "sqlite-jdbc", version = "3.53.2.1" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

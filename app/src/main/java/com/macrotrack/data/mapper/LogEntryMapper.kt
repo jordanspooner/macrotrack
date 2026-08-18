@@ -1,6 +1,8 @@
 package com.macrotrack.data.mapper
 
+import com.macrotrack.data.local.db.dao.FoodUsageStatsRow
 import com.macrotrack.data.local.db.entity.LogEntryEntity
+import com.macrotrack.domain.model.FoodUsageStats
 import com.macrotrack.domain.model.LogEntry
 import com.macrotrack.domain.model.Macros
 import java.time.Instant
@@ -41,4 +43,12 @@ fun LogEntry.toEntity() = LogEntryEntity(
     fat = macros.fatG,
     sortOrder = sortOrder,
     createdAt = createdAt.toEpochMilli()
+)
+
+fun FoodUsageStatsRow.toDomain() = FoodUsageStats(
+    foodItemId = foodItemId,
+    overallCount = overallCount,
+    overallRecentCreatedAt = overallRecentCreatedAt,
+    sectionCount = sectionCount,
+    sectionRecentCreatedAt = sectionRecentCreatedAt,
 )

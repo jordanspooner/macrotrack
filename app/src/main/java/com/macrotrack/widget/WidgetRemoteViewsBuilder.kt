@@ -170,7 +170,7 @@ internal class WidgetRemoteViewsBuilder(
 
     private companion object {
         const val COMPACT_WIDTH_DP = 180
-        const val WIDE_WIDTH_DP = 250
+        const val WIDE_WIDTH_DP = 300
         const val PROGRESS_MAX = 1000
     }
 }

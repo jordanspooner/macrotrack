@@ -116,7 +116,9 @@ private fun MacroTrackWidgetContent(
     summary: DailySummary,
 ) {
     val size = LocalSize.current
-    val compact = size.width < 250.dp
+    // Keep the 180dp responsive size compact; the 300dp size is the first
+    // layout wide enough for the side-by-side action grid.
+    val compact = size.width < 300.dp
     val colors = widgetColors()
     val ringSize = if (compact) 64.dp else 100.dp
     val density = context.resources.displayMetrics.density

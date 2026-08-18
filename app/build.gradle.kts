@@ -70,6 +70,9 @@ dependencies {
     implementation(libs.androidx.room.ktx)
     implementation(libs.androidx.sqlite.bundled)
     ksp(libs.androidx.room.compiler)
+    // Bundled SQLite driver: guarantees FTS5 with the trigram tokenizer on all
+    // API levels (framework SQLite lacks trigram below API 33).
+    implementation(libs.androidx.sqlite.bundled)
 
     // Hilt
     implementation(libs.hilt.android)
@@ -109,6 +112,7 @@ dependencies {
     testImplementation(libs.turbine)
     testImplementation(libs.truth)
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.sqlite.jdbc)
     
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

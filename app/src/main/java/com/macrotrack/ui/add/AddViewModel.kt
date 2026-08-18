@@ -112,7 +112,7 @@ class AddViewModel @Inject constructor(
             if (q.isBlank()) {
                 flow { emit(getRecommendationsUseCase.getRecommendations(sectionId)) }
             } else {
-                searchFoodUseCase(q)
+                searchFoodUseCase(q, sectionId)
             }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())

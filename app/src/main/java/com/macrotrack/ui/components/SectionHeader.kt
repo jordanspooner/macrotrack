@@ -2,6 +2,7 @@ package com.macrotrack.ui.components
 
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.ui.draw.clip
@@ -17,8 +18,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.macrotrack.domain.model.Macros
+import com.macrotrack.ui.theme.MacroTrackShapes
 import com.macrotrack.ui.theme.Spacing
 import com.macrotrack.ui.theme.brandPrimary
 import com.macrotrack.ui.theme.macroCarbsColor
@@ -33,19 +38,41 @@ fun SectionHeader(
     isExpanded: Boolean,
     onToggleExpand: () -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    isActiveDropTarget: Boolean = false,
+    isInvalidDropTarget: Boolean = false,
+    moveAccessibilityLabel: String? = null,
+    onMoveAccessibilityAction: (() -> Boolean)? = null,
 ) {
-    val background = if (isExpanded) {
-        MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.15f)
+    val background = when {
+        isActiveDropTarget && isInvalidDropTarget ->
+            MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f)
+        isActiveDropTarget -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+        isExpanded -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.15f)
+        else -> Color.Transparent
+    }
+    val targetBorder = if (isActiveDropTarget && !isInvalidDropTarget) {
+        Modifier.border(1.5.dp, brandPrimary(), MacroTrackShapes.small)
     } else {
-        Color.Transparent
+        Modifier
     }
 
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clickable(onClick = onToggleExpand)
+            .clickable(enabled = enabled, onClick = onToggleExpand)
             .animateContentSize()
             .background(background)
+            .then(targetBorder)
+            .semantics {
+                moveAccessibilityLabel?.let { label ->
+                    customActions = listOf(
+                        CustomAccessibilityAction(label) {
+                            onMoveAccessibilityAction?.invoke() ?: false
+                        }
+                    )
+                }
+            }
             .padding(horizontal = Spacing.lg, vertical = Spacing.md),
         verticalAlignment = Alignment.CenterVertically
     ) {
