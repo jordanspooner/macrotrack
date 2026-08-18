@@ -4,7 +4,11 @@ import com.macrotrack.domain.model.DailyGoals
 import com.macrotrack.domain.model.Section
 import java.time.LocalTime
 
-enum class MacroType { PROTEIN, CARBS, FAT }
+/**
+ * Re-export of the domain macro type so existing settings UI callers and the
+ * persisted distribution model keep compiling unchanged.
+ */
+typealias MacroType = com.macrotrack.domain.model.MacroType
 
 data class DraftSection(
     val id: Long,

@@ -1,6 +1,5 @@
 package com.macrotrack.ui.log
 
-import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
@@ -261,9 +260,6 @@ fun LogScreen(
 
 private val DATE_EPOCH = LocalDate.of(1970, 1, 1)
 
-/** Logcat tag for drag-and-drop diagnostics; grep for this to trace drop/edge events. */
-private const val DND_TAG = "MacroTrackDnD"
-
 /** Upper bound for a single edge step to land in the UI state before pacing the next. */
 private const val EDGE_TARGET_TIMEOUT_MILLIS = 1_500L
 
@@ -321,7 +317,6 @@ private fun LogContent(
 
     fun startDrag(snapshot: List<LogEntry>, sourceDate: LocalDate, position: Offset) {
         if (dragState != null || snapshot.isEmpty()) return
-        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
         // A drag must never be misread as a pending normal pager swipe: stale
         // settles from programmatic scrolling cannot generate a false delta.
         userDraggedWeekPager = false
@@ -364,7 +359,6 @@ private fun LogContent(
     fun pageForEdge(edge: ActiveEdge) {
         haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
         val step = edgeStepFor(edge)
-        Log.i(DND_TAG, "edge step day=${step.dayDelta} week=${step.weekDelta}")
         if (step.weekDelta != 0L) viewModel.navigateWeekDuringDrag(step.weekDelta)
         if (step.dayDelta != 0L) viewModel.advanceDayDuringDrag(step.dayDelta)
     }
@@ -373,26 +367,27 @@ private fun LogContent(
         val drag = dragState ?: return
         dragState = null
         dragPointerPosition = Offset.Zero
+        userDraggedWeekPager = false
+        userDraggedContentPager = false
         if (shouldCancelDrop(position, weekStripBounds, dailyBodyBounds, edgeWidthPx)) {
-            Log.w(DND_TAG, "drop cancelled: released in edge zone at $position")
             return
         }
         when (val target = resolveDropTarget(position, mealTargets, weekTargets)) {
             is DragTarget.Meal -> {
-                Log.i(DND_TAG, "drop -> move ${drag.entries.size} to $target")
                 viewModel.moveDraggedEntries(drag.entries, target.date, target.sectionId)
             }
             is DragTarget.WeekDay -> {
-                Log.i(DND_TAG, "drop -> move ${drag.entries.size} to ${target.date}")
                 viewModel.moveDraggedEntries(drag.entries, target.date)
             }
-            null -> Log.w(DND_TAG, "drop cancelled: no target at $position")
+            null -> Unit
         }
     }
 
     val cancelDrag = {
         dragState = null
         dragPointerPosition = Offset.Zero
+        userDraggedWeekPager = false
+        userDraggedContentPager = false
     }
     val latestDragState = rememberUpdatedState(dragState)
     val latestMoveDrag = rememberUpdatedState<(Offset) -> Unit>(::moveDrag)
@@ -789,124 +784,126 @@ private fun DayContentPage(
                 // Expand empty sections on a day with nothing logged so the drop
                 // zone is obvious and easy to hit; otherwise honor the saved state.
                 val expanded = sectionWithEntries.isExpanded || !dayHasEntries
-                    val activeMealTarget = dragState?.activeTarget as? DragTarget.Meal
-                    val isActiveTarget =
-                        activeMealTarget?.date == dayContent.date && activeMealTarget.sectionId == section.id
-                    val isRedundantTarget = if (isActiveTarget) {
-                        checkNotNull(dragState).isRedundantTarget
-                    } else {
-                        false
-                    }
+                val activeMealTarget = dragState?.activeTarget as? DragTarget.Meal
+                val isActiveTarget =
+                    activeMealTarget?.date == dayContent.date && activeMealTarget.sectionId == section.id
+                val isRedundantTarget = if (isActiveTarget) {
+                    checkNotNull(dragState).isRedundantTarget
+                } else {
+                    false
+                }
 
-                    Column(
-                        modifier = Modifier.onGloballyPositioned {
-                            onRegisterMealTarget(
-                                dayContent.date,
-                                section.id,
-                                section.name,
-                                it.boundsInRoot(),
-                            )
-                        }
-                    ) {
-                        SectionHeader(
-                            name = section.name,
-                            totalMacros = sectionWithEntries.totalMacros,
-                            isExpanded = expanded,
-                            onToggleExpand = { onToggleSectionExpanded(section.id) },
-                            enabled = !isDragActive,
-                            isActiveDropTarget = isActiveTarget,
-                            isInvalidDropTarget = isRedundantTarget,
-                            moveAccessibilityLabel = if (selectionMode is SelectionMode.Selecting) {
-                                "Move $selectedCount selected to ${section.name}"
-                            } else {
-                                null
-                            },
-                            onMoveAccessibilityAction = {
-                                onMoveToSection(dayContent.date, section.id)
-                                true
-                            },
+                Column(
+                    modifier = Modifier.onGloballyPositioned {
+                        onRegisterMealTarget(
+                            dayContent.date,
+                            section.id,
+                            section.name,
+                            it.boundsInRoot(),
                         )
+                    }
+                ) {
+                    SectionHeader(
+                        name = section.name,
+                        totalMacros = sectionWithEntries.totalMacros,
+                        goalMacros = sectionWithEntries.goalMacros,
+                        hasEntries = sectionWithEntries.entries.isNotEmpty(),
+                        isExpanded = expanded,
+                        onToggleExpand = { onToggleSectionExpanded(section.id) },
+                        enabled = !isDragActive,
+                        isActiveDropTarget = isActiveTarget,
+                        isInvalidDropTarget = isRedundantTarget,
+                        moveAccessibilityLabel = if (selectionMode is SelectionMode.Selecting) {
+                            "Move $selectedCount selected to ${section.name}"
+                        } else {
+                            null
+                        },
+                        onMoveAccessibilityAction = {
+                            onMoveToSection(dayContent.date, section.id)
+                            true
+                        },
+                    )
 
-                        if (expanded) {
-                            if (sectionWithEntries.entries.isEmpty()) {
-                                val sectionId = sectionWithEntries.section.id
-                                val dateIso = dayContent.date.format(DateTimeFormatter.ISO_LOCAL_DATE)
-                                OutlinedButton(
-                                    onClick = { onNavigateToAddFood(sectionId, dateIso, "search") },
-                                    shape = MacroTrackPillShape,
-                                    modifier = Modifier
-                                        .padding(horizontal = Spacing.xxl, vertical = Spacing.sm),
-                                ) {
-                                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                                    Spacer(Modifier.width(Spacing.xs))
-                                    Text("Add food")
+                    if (expanded) {
+                        if (sectionWithEntries.entries.isEmpty()) {
+                            val sectionId = sectionWithEntries.section.id
+                            val dateIso = dayContent.date.format(DateTimeFormatter.ISO_LOCAL_DATE)
+                            OutlinedButton(
+                                onClick = { onNavigateToAddFood(sectionId, dateIso, "search") },
+                                shape = MacroTrackPillShape,
+                                modifier = Modifier
+                                    .padding(horizontal = Spacing.xxl, vertical = Spacing.sm),
+                            ) {
+                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(Spacing.xs))
+                                Text("Add food")
+                            }
+                        } else {
+                            sectionWithEntries.entries.forEach { entry ->
+                                val isSelected = when (val mode = selectionMode) {
+                                    is SelectionMode.Selecting -> mode.selectedIds.contains(entry.id)
+                                    is SelectionMode.ChoosingDestination -> mode.selectedIds.contains(entry.id)
+                                    SelectionMode.Off -> false
                                 }
-                            } else {
-                                sectionWithEntries.entries.forEach { entry ->
-                                    val isSelected = when (val mode = selectionMode) {
-                                        is SelectionMode.Selecting -> mode.selectedIds.contains(entry.id)
-                                        is SelectionMode.ChoosingDestination -> mode.selectedIds.contains(entry.id)
-                                        SelectionMode.Off -> false
-                                    }
 
-                                    FoodItemCard(
-                                        entry = entry,
-                                        isSelected = isSelected,
-                                        isDragSource = isDragActive && isSelected,
-                                        gesturesEnabled = !isDragActive,
-                                        onClick = {
-                                            if (selectionMode != SelectionMode.Off) {
-                                                onToggleSelection(entry, dayContent.date)
-                                            } else {
-                                                onEditEntry(entry.id, dayContent.date)
+                                FoodItemCard(
+                                    entry = entry,
+                                    isSelected = isSelected,
+                                    isDragSource = isDragActive && isSelected,
+                                    gesturesEnabled = !isDragActive,
+                                    onClick = {
+                                        if (selectionMode != SelectionMode.Off) {
+                                            onToggleSelection(entry, dayContent.date)
+                                        } else {
+                                            onEditEntry(entry.id, dayContent.date)
+                                        }
+                                    },
+                                    onLongPress = {
+                                        // A stationary long-press never arms a drag:
+                                        // an unselected food only toggles selection,
+                                        // and a selected card must keep its selection
+                                        // intact so a later drag payload is the whole
+                                        // current snapshot. Drag arming happens on
+                                        // post-long-press movement (onDragStart).
+                                        pendingDragAnchor = when {
+                                            selectionMode is SelectionMode.Selecting && isSelected ->
+                                                selectionMode.selectedEntries to selectionMode.sourceDate
+                                            selectionMode !is SelectionMode.ChoosingDestination -> {
+                                                val updatedMode = onToggleSelection(entry, dayContent.date)
+                                                (updatedMode as? SelectionMode.Selecting)
+                                                    ?.takeIf { it.selectedEntries.any { selected -> selected.id == entry.id } }
+                                                    ?.let { it.selectedEntries to it.sourceDate }
                                             }
-                                        },
-                                        onLongPress = {
-                                            // A stationary long-press never arms a drag:
-                                            // an unselected food only toggles selection,
-                                            // and a selected card must keep its selection
-                                            // intact so a later drag payload is the whole
-                                            // current snapshot. Drag arming happens on
-                                            // post-long-press movement (onDragStart).
-                                            pendingDragAnchor = when {
-                                                selectionMode is SelectionMode.Selecting && isSelected ->
-                                                    selectionMode.selectedEntries to selectionMode.sourceDate
-                                                selectionMode !is SelectionMode.ChoosingDestination -> {
-                                                    val updatedMode = onToggleSelection(entry, dayContent.date)
-                                                    (updatedMode as? SelectionMode.Selecting)
-                                                        ?.takeIf { it.selectedEntries.any { selected -> selected.id == entry.id } }
-                                                        ?.let { it.selectedEntries to it.sourceDate }
-                                                }
-                                                else -> null
-                                            }
-                                        },
-                                        onDragStart = { position ->
-                                            val pending = pendingDragAnchor
-                                            pendingDragAnchor = null
-                                            dragStartAnchorWithPending(selectionMode, entry, pending)
-                                                ?.let { (snapshot, sourceDate) ->
-                                                onStartDrag(snapshot, sourceDate, position)
-                                            }
-                                        },
-                                        // Drag movement and release are owned solely by the
-                                        // stable root pointer observer in LogContent (it sees
-                                        // the original pointer in the Initial pass and keeps
-                                        // tracking it after pager disposal). Card-level move
-                                        // and end callbacks are no-ops so the same pointer is
-                                        // never processed twice.
-                                        onDragMove = { },
-                                        onDragEnd = { },
-                                    )
-                                }
+                                            else -> null
+                                        }
+                                    },
+                                    onDragStart = { position ->
+                                        val pending = pendingDragAnchor
+                                        pendingDragAnchor = null
+                                        dragStartAnchorWithPending(selectionMode, entry, pending)
+                                            ?.let { (snapshot, sourceDate) ->
+                                            onStartDrag(snapshot, sourceDate, position)
+                                        }
+                                    },
+                                    // Drag movement and release are owned solely by the
+                                    // stable root pointer observer in LogContent (it sees
+                                    // the original pointer in the Initial pass and keeps
+                                    // tracking it after pager navigation disposes this card.
+                                    // Card-level move and end callbacks are no-ops so the same
+                                    // pointer is never processed twice.
+                                    onDragMove = { },
+                                    onDragEnd = { },
+                                )
                             }
                         }
                     }
+                }
 
-                    DisposableEffect(dayContent.date, section.id) {
-                        onDispose { onUnregisterMealTarget(dayContent.date, section.id) }
-                    }
+                DisposableEffect(dayContent.date, section.id) {
+                    onDispose { onUnregisterMealTarget(dayContent.date, section.id) }
                 }
             }
+        }
     }
 }
 

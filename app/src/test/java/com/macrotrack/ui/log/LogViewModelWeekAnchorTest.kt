@@ -4,12 +4,14 @@ import com.macrotrack.domain.model.DailyGoals
 import com.macrotrack.domain.model.LogEntry
 import com.macrotrack.domain.model.Macros
 import com.macrotrack.domain.model.Section
+import com.macrotrack.domain.model.SectionGoals
 import com.macrotrack.domain.usecase.log.CopyLogEntriesUseCase
 import com.macrotrack.domain.usecase.log.DeleteLogEntriesUseCase
 import com.macrotrack.domain.usecase.log.GetDailyLogUseCase
 import com.macrotrack.domain.usecase.log.GetWeeklyMacrosUseCase
 import com.macrotrack.domain.usecase.log.MoveLogEntriesUseCase
 import com.macrotrack.domain.usecase.settings.GetSectionsUseCase
+import com.macrotrack.domain.usecase.settings.GetSectionGoalsUseCase
 import com.macrotrack.domain.usecase.settings.GetSettingsUseCase
 import io.mockk.every
 import io.mockk.mockk
@@ -41,6 +43,7 @@ class LogViewModelWeekAnchorTest {
     private val dailyLog = mockk<GetDailyLogUseCase>()
     private val sections = mockk<GetSectionsUseCase>()
     private val settings = mockk<GetSettingsUseCase>()
+    private val sectionGoals = mockk<GetSectionGoalsUseCase>()
     private val weeklyMacros = mockk<GetWeeklyMacrosUseCase>()
     private val deleteEntries = mockk<DeleteLogEntriesUseCase>(relaxed = true)
     private val copyEntries = mockk<CopyLogEntriesUseCase>(relaxed = true)
@@ -60,11 +63,13 @@ class LogViewModelWeekAnchorTest {
             listOf(Section(id = 1L, name = "Dinner", timeOfDay = LocalTime.of(18, 0)))
         )
         every { settings() } returns flowOf(DailyGoals(proteinG = 150, carbsG = 250, fatG = 65))
+        every { sectionGoals() } returns flowOf(SectionGoals(enabled = false))
         every { weeklyMacros(any(), any()) } returns flowOf(emptyList())
         viewModel = LogViewModel(
             getDailyLogUseCase = dailyLog,
             getSectionsUseCase = sections,
             getSettingsUseCase = settings,
+            getSectionGoalsUseCase = sectionGoals,
             deleteLogEntriesUseCase = deleteEntries,
             copyLogEntriesUseCase = copyEntries,
             moveLogEntriesUseCase = moveEntries,

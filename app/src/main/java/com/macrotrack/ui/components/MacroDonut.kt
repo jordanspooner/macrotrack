@@ -10,6 +10,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -37,23 +38,25 @@ fun MacroDonut(
     Box(contentAlignment = Alignment.Center, modifier = modifier.size(diameter)) {
         Canvas(modifier = Modifier.size(diameter)) {
             if (total <= 0f) return@Canvas
-            val stroke = size.minDimension * 0.16f
+            val stroke = size.minDimension * 0.12f
             val radius = (size.minDimension - stroke) / 2f
             val topLeft = Offset((size.width - radius * 2) / 2f, (size.height - radius * 2) / 2f)
             val arcSize = Size(radius * 2, radius * 2)
-            drawArc(track, 0f, 360f, false, topLeft, arcSize, style = Stroke(stroke))
+            drawArc(track, 0f, 360f, false, topLeft, arcSize, style = Stroke(stroke, cap = StrokeCap.Round))
+            val gapAngle = 4f
+            val availableAngle = 360f - gapAngle * 3f
             val segments = listOf(
                 proteinKcal to proteinColor,
                 carbsKcal to carbsColor,
                 fatKcal to fatColor,
             )
-            var startAngle = -90f
+            var startAngle = -90f + gapAngle / 2f
             for ((value, color) in segments) {
-                val sweep = (value / total) * 360f
+                val sweep = (value / total) * availableAngle
                 if (sweep > 0f) {
-                    drawArc(color, startAngle, sweep, false, topLeft, arcSize, style = Stroke(stroke))
-                    startAngle += sweep
+                    drawArc(color, startAngle, sweep, false, topLeft, arcSize, style = Stroke(stroke, cap = StrokeCap.Round))
                 }
+                startAngle += sweep + gapAngle
             }
         }
         centerText?.let {
